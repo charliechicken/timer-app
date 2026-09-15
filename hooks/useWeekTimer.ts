@@ -18,6 +18,7 @@ export function useWeekTimer(firebaseUid: string | null) {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [ready, setReady] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
@@ -42,14 +43,22 @@ export function useWeekTimer(firebaseUid: string | null) {
 
   useEffect(() => {
     if (!ownerId) return;
-    const unsubscribe = subscribeSessions(ownerId, (next) => {
-      setSessions(next);
-      setReady(true);
-      if (!migrated.current && usingFirebase) {
-        migrated.current = true;
-        void migrateLocalSessionsIfNeeded(ownerId, next);
-      }
-    });
+    const unsubscribe = subscribeSessions(
+      ownerId,
+      (next) => {
+        setSessions(next);
+        setReady(true);
+        setSyncError(null);
+        if (!migrated.current && usingFirebase) {
+          migrated.current = true;
+          void migrateLocalSessionsIfNeeded(ownerId, next);
+        }
+      },
+      (message) => {
+        setSyncError(message);
+        setReady(true);
+      },
+    );
     return unsubscribe;
   }, [ownerId, usingFirebase]);
 
@@ -212,6 +221,9 @@ export function useWeekTimer(firebaseUid: string | null) {
 
       try {
         await commitSessions(ownerId, next, upserts);
+        setSyncError(null);
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Could not save");
       } finally {
         pending.current = false;
       }
@@ -227,6 +239,9 @@ export function useWeekTimer(firebaseUid: string | null) {
     setSessions(next);
     try {
       await commitSessions(ownerId, next, [stopped]);
+      setSyncError(null);
+    } catch (error) {
+      setSyncError(error instanceof Error ? error.message : "Could not save");
     } finally {
       pending.current = false;
     }
@@ -237,7 +252,12 @@ export function useWeekTimer(firebaseUid: string | null) {
       if (!ownerId) return;
       const next = sessions.filter((session) => session.id !== sessionId);
       setSessions(next);
-      await commitSessions(ownerId, next, [], [sessionId]);
+      try {
+        await commitSessions(ownerId, next, [], [sessionId]);
+        setSyncError(null);
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Could not save");
+      }
     },
     [ownerId, sessions],
   );
@@ -246,6 +266,7 @@ export function useWeekTimer(firebaseUid: string | null) {
     ownerId: ownerId ?? "…",
     ready,
     usingFirebase,
+    syncError,
     now,
     weekOffset,
     goToWeek,

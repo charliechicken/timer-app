@@ -90,6 +90,10 @@ export function Dashboard() {
         </div>
       </header>
 
+      {timer.syncError ? (
+        <p className="sync-error">{timer.syncError}</p>
+      ) : null}
+
       {showLastWeekPrompt ? (
         <button
           type="button"

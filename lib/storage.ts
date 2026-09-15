@@ -12,6 +12,13 @@ import type { Session } from "./types";
 
 const LOCAL_KEY = "week-timer-sessions-v1";
 
+export function formatFirebaseError(message: string): string {
+  if (message.toLowerCase().includes("permission")) {
+    return "Firestore blocked the save. In Firebase, open Firestore → Rules, paste firestore.rules from this repo, and click Publish.";
+  }
+  return message;
+}
+
 function parseSession(raw: unknown): Session | null {
   if (!raw || typeof raw !== "object") return null;
   const value = raw as Record<string, unknown>;
@@ -47,6 +54,7 @@ export function saveLocalSessions(sessions: Session[]): void {
 export function subscribeSessions(
   ownerId: string,
   onChange: (sessions: Session[]) => void,
+  onError?: (message: string) => void,
 ): Unsubscribe {
   const db = getDb();
   if (!db) {
@@ -58,13 +66,19 @@ export function subscribeSessions(
     return () => window.removeEventListener("storage", handler);
   }
 
-  return onSnapshot(collection(db, "users", ownerId, "sessions"), (snapshot) => {
-    const sessions = snapshot.docs
-      .map((item) => parseSession({ id: item.id, ...item.data() }))
-      .filter((session): session is Session => session !== null)
-      .sort((a, b) => b.startAt - a.startAt);
-    onChange(sessions);
-  });
+  return onSnapshot(
+    collection(db, "users", ownerId, "sessions"),
+    (snapshot) => {
+      const sessions = snapshot.docs
+        .map((item) => parseSession({ id: item.id, ...item.data() }))
+        .filter((session): session is Session => session !== null)
+        .sort((a, b) => b.startAt - a.startAt);
+      onChange(sessions);
+    },
+    (error) => {
+      onError?.(formatFirebaseError(error.message));
+    },
+  );
 }
 
 export async function commitSessions(
@@ -86,7 +100,10 @@ export async function commitSessions(
     ...deletes.map((sessionId) =>
       deleteDoc(doc(db, "users", ownerId, "sessions", sessionId)),
     ),
-  ]);
+  ]).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : "Could not save to Firestore";
+    throw new Error(formatFirebaseError(message));
+  });
 }
 
 export async function upsertSession(ownerId: string, session: Session): Promise<void> {

@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f4efe6;
-  --bg-soft: #fffdf8;
-  --bg-card: #ffffff;
-  --line: rgba(42, 34, 24, 0.1);
+  --bg: #eef4fb;
+  --bg-soft: #f7fbfe;
+  --bg-card: #e7f2fb;
+  --line: rgba(46, 92, 138, 0.16);
   --ink: #1f2430;
-  --muted: #6b645b;
+  --muted: #5b6b7c;
   --gold: #8a5a2b;
   --danger: #c0453a;
+  --btn: #cfe6f8;
+  --btn-hover: #bcdcf4;
+  --btn-strong: #3d86c4;
+  --btn-ink: #1a4f7a;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-fraunces);
@@ -28,8 +32,8 @@ body {
   color: var(--ink);
   font-family: var(--font-sans), sans-serif;
   background:
-    radial-gradient(900px 420px at 8% -8%, rgba(232, 196, 140, 0.45), transparent 55%),
-    radial-gradient(800px 360px at 100% 0%, rgba(168, 206, 198, 0.28), transparent 50%),
+    radial-gradient(900px 420px at 8% -8%, rgba(167, 206, 240, 0.45), transparent 55%),
+    radial-gradient(800px 360px at 100% 0%, rgba(186, 220, 245, 0.4), transparent 50%),
     var(--bg);
 }
 
@@ -115,19 +119,25 @@ h3 {
 .stop,
 .ghost,
 .recap-banner {
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 28%, var(--line));
+  background: var(--btn);
+  color: var(--btn-ink);
   border-radius: 999px;
   padding: 8px 14px;
   cursor: pointer;
 }
 
+.week-nav button:hover,
+.ghost:hover,
+.recap-banner:hover {
+  background: var(--btn-hover);
+}
+
 .week-nav button.current,
 .stop {
-  background: var(--ink);
+  background: var(--btn-strong);
   color: #fff;
-  border-color: var(--ink);
+  border-color: var(--btn-strong);
 }
 
 .week-nav button:disabled {
@@ -244,7 +254,7 @@ h3 {
   text-align: left;
   padding: 14px;
   border-radius: 18px;
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 22%, var(--line));
   background: var(--bg-card);
   color: var(--ink);
   cursor: pointer;
@@ -287,6 +297,28 @@ h3 {
 .activity-total,
 .activity-action {
   font-size: 0.8rem;
+}
+
+.activity-action {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--btn);
+  color: var(--btn-ink);
+  font-weight: 650;
+}
+
+.activity-card.running .activity-action {
+  background: var(--btn-strong);
+  color: #fff;
+}
+
+.sync-error {
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 18px;
+  background: #fdecec;
+  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--line));
 }
 
 .week-chart {
@@ -367,7 +399,7 @@ h3 {
   padding: 12px;
   border-radius: 16px;
   background: var(--bg-card);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 18%, var(--line));
 }
 
 .dot {
@@ -407,8 +439,9 @@ h3 {
 .pill {
   border-radius: 999px;
   padding: 4px 10px;
-  border: 1px solid var(--line);
-  background: #fff;
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 22%, var(--line));
+  background: var(--btn);
+  color: var(--btn-ink);
 }
 
 .pill.live {
@@ -427,7 +460,7 @@ h3 {
 
 .report-stats article {
   background: var(--bg-card);
-  border: 1px solid var(--line);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 18%, var(--line));
   border-radius: 16px;
   padding: 14px;
 }
