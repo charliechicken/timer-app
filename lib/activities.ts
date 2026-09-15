@@ -14,6 +14,7 @@ export const ACTIVITY_IDS: ActivityId[] = [
   "youtube",
   "instagram",
   "eating",
+  "gym",
 ];
 
 export const ACTIVITIES: Activity[] = [
@@ -93,6 +94,13 @@ export const ACTIVITIES: Activity[] = [
     shortLabel: "Eat",
     group: "life",
     color: "#d9893b",
+  },
+  {
+    id: "gym",
+    label: "Gym",
+    shortLabel: "Gym",
+    group: "training",
+    color: "#3d86c4",
   },
 ];
 

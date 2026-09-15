@@ -1,8 +1,10 @@
 "use client";
 
 import { activitiesInGroup } from "@/lib/activities";
+import { requestAlertPermission } from "@/lib/alerts";
 import { formatWeekRange } from "@/lib/time";
-import { ActivityCard } from "./ActivityCard";
+import { ActivityBlock } from "./ActivityBlock";
+import { AppShell } from "./AppShell";
 import { HeroTimer } from "./HeroTimer";
 import { SessionList } from "./SessionList";
 import { WeekChart } from "./WeekChart";
@@ -22,28 +24,9 @@ export function Dashboard() {
     new Date().getDay() === 1 &&
     timer.previousWeekTotal > 0;
 
-  if (auth.usingFirebase && auth.authReady && !auth.user) {
-    return (
-      <main className="shell">
-        <section className="panel signin">
-          <p className="eyebrow">Week timer</p>
-          <h1>Sign in to sync</h1>
-          <p className="muted">
-            Firestore is in production mode, so your log is locked to your
-            Google account.
-          </p>
-          <button
-            type="button"
-            className="stop"
-            onClick={() => void auth.signIn()}
-            disabled={auth.busy}
-          >
-            {auth.busy ? "Opening Google…" : "Sign in with Google"}
-          </button>
-          {auth.error ? <p className="stale">{auth.error}</p> : null}
-        </section>
-      </main>
-    );
+  function startTimed(activityId: (typeof study)[number]["id"], durationMs: number) {
+    void requestAlertPermission();
+    void timer.start(activityId, durationMs);
   }
 
   const report = (
@@ -53,6 +36,7 @@ export function Dashboard() {
       studyTotal={timer.studyTotal}
       clubTotal={timer.clubTotal}
       lifeTotal={timer.lifeTotal}
+      gymTotal={timer.gymTotal}
       previousWeekTotal={timer.previousWeekTotal}
       sessionCount={timer.sessionCount}
       busiestDay={timer.busiestDay}
@@ -63,7 +47,7 @@ export function Dashboard() {
   );
 
   return (
-    <main className="shell">
+    <AppShell>
       <header className="topbar">
         <div>
           <p className="brand">Week timer</p>
@@ -90,16 +74,10 @@ export function Dashboard() {
         </div>
       </header>
 
-      {timer.syncError ? (
-        <p className="sync-error">{timer.syncError}</p>
-      ) : null}
+      {timer.syncError ? <p className="sync-error">{timer.syncError}</p> : null}
 
       {showLastWeekPrompt ? (
-        <button
-          type="button"
-          className="recap-banner"
-          onClick={() => timer.goToWeek(-1)}
-        >
+        <button type="button" className="recap-banner" onClick={() => timer.goToWeek(-1)}>
           Last week’s report is ready. Open it.
         </button>
       ) : null}
@@ -120,16 +98,18 @@ export function Dashboard() {
       <section className="panel">
         <div className="panel-title">
           <h3>Study for these classes</h3>
-          <p>PHIL, ECON, MATH, S&DS, CHNS</p>
+          <p>Start a countdown, or add minutes you already spent</p>
         </div>
         <div className="grid study">
           {study.map((activity) => (
-            <ActivityCard
+            <ActivityBlock
               key={activity.id}
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
               onToggle={() => void timer.start(activity.id)}
+              onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
+              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
             />
           ))}
         </div>
@@ -142,12 +122,14 @@ export function Dashboard() {
         </div>
         <div className="grid clubs">
           {clubs.map((activity) => (
-            <ActivityCard
+            <ActivityBlock
               key={activity.id}
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
               onToggle={() => void timer.start(activity.id)}
+              onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
+              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
             />
           ))}
         </div>
@@ -160,12 +142,14 @@ export function Dashboard() {
         </div>
         <div className="grid life">
           {life.map((activity) => (
-            <ActivityCard
+            <ActivityBlock
               key={activity.id}
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
               onToggle={() => void timer.start(activity.id)}
+              onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
+              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
             />
           ))}
         </div>
@@ -201,18 +185,10 @@ export function Dashboard() {
               : "This browser only"
             : "Loading"}
         </span>
-        {auth.user ? <span>{auth.user.email}</span> : <span>This browser only</span>}
-        {auth.user ? (
-          <button type="button" className="ghost" onClick={() => void auth.signOut()}>
-            Sign out
-          </button>
-        ) : (
-          <span>
-            Create a production Firestore database, then add the Firebase keys on
-            Vercel and sign in with Google.
-          </span>
-        )}
+        <span>
+          Timed sessions email {auth.user?.email ?? "you"}, show a notification, and play a sound.
+        </span>
       </footer>
-    </main>
+    </AppShell>
   );
 }

@@ -9,9 +9,10 @@ export type ActivityId =
   | "instagram"
   | "eating"
   | "club-mma"
-  | "club-wrestling";
+  | "club-wrestling"
+  | "gym";
 
-export type ActivityGroup = "study" | "club" | "life";
+export type ActivityGroup = "study" | "club" | "life" | "training";
 
 export type Activity = {
   id: ActivityId;
@@ -26,4 +27,6 @@ export type Session = {
   activityId: ActivityId;
   startAt: number;
   endAt: number | null;
+  targetEndAt: number | null;
+  manual?: boolean;
 };

@@ -9,6 +9,19 @@ export function startOfWeek(reference = new Date(), weekOffset = 0): Date {
   return date;
 }
 
+export function startOfDay(reference = new Date()): Date {
+  const date = new Date(reference);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+export function dateKey(reference = new Date()): string {
+  const date = startOfDay(reference);
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
 export function addDays(date: Date, days: number): Date {
   return new Date(date.getTime() + days * DAY_MS);
 }

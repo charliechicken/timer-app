@@ -28,11 +28,19 @@ function parseSession(raw: unknown): Session | null {
   }
   if (typeof value.startAt !== "number") return null;
   if (value.endAt !== null && typeof value.endAt !== "number") return null;
+  const targetEndAt =
+    value.targetEndAt === null || value.targetEndAt === undefined
+      ? null
+      : typeof value.targetEndAt === "number"
+        ? value.targetEndAt
+        : null;
   return {
     id: value.id,
     activityId: value.activityId,
     startAt: value.startAt,
     endAt: value.endAt,
+    targetEndAt,
+    manual: value.manual === true,
   };
 }
 
@@ -49,6 +57,7 @@ export function loadLocalSessions(): Session[] {
 
 export function saveLocalSessions(sessions: Session[]): void {
   window.localStorage.setItem(LOCAL_KEY, JSON.stringify(sessions));
+  window.dispatchEvent(new Event("week-timer-sessions"));
 }
 
 export function subscribeSessions(
@@ -59,11 +68,13 @@ export function subscribeSessions(
   const db = getDb();
   if (!db) {
     onChange(loadLocalSessions());
-    const handler = (event: StorageEvent) => {
-      if (event.key === LOCAL_KEY) onChange(loadLocalSessions());
-    };
+    const handler = () => onChange(loadLocalSessions());
     window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
+    window.addEventListener("week-timer-sessions", handler);
+    return () => {
+      window.removeEventListener("storage", handler);
+      window.removeEventListener("week-timer-sessions", handler);
+    };
   }
 
   return onSnapshot(

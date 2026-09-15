@@ -1,5 +1,5 @@
-import { Dashboard } from "@/components/Dashboard";
+import { HomeChooser } from "@/components/HomeChooser";
 
 export default function Home() {
-  return <Dashboard />;
+  return <HomeChooser />;
 }

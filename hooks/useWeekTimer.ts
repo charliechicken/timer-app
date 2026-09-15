@@ -9,12 +9,21 @@ import {
   migrateLocalSessionsIfNeeded,
   subscribeSessions,
 } from "@/lib/storage";
-import { addDays, overlapMs, startOfWeek } from "@/lib/time";
+import {
+  emailTimerComplete,
+  playTimerSound,
+  showTimerNotification,
+} from "@/lib/alerts";
+import { addDays, isSameDay, overlapMs, startOfWeek } from "@/lib/time";
 import type { ActivityId, Session } from "@/lib/types";
 
 const STALE_MS = 8 * 60 * 60 * 1000;
 
-export function useWeekTimer(firebaseUid: string | null) {
+export function useWeekTimer(
+  firebaseUid: string | null,
+  notifyEmail?: string | null,
+  enableAlerts = false,
+) {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [ready, setReady] = useState(false);
@@ -27,6 +36,7 @@ export function useWeekTimer(firebaseUid: string | null) {
   });
   const migrated = useRef(false);
   const pending = useRef(false);
+  const completing = useRef<string | null>(null);
   const usingFirebase = isFirebaseConfigured();
 
   useEffect(() => {
@@ -75,7 +85,11 @@ export function useWeekTimer(firebaseUid: string | null) {
     const tick = () => setNow(Date.now());
     tick();
     const id = window.setInterval(tick, 250);
-    return () => window.clearInterval(id);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [activeSession]);
 
   const weekStart = useMemo(() => startOfWeek(new Date(), weekOffset), [weekOffset]);
@@ -147,6 +161,7 @@ export function useWeekTimer(firebaseUid: string | null) {
   const studyTotal = groupTotal("study");
   const clubTotal = groupTotal("club");
   const lifeTotal = groupTotal("life");
+  const gymTotal = groupTotal("training");
 
   const previousWeekStart = useMemo(
     () => startOfWeek(new Date(), weekOffset - 1),
@@ -195,14 +210,19 @@ export function useWeekTimer(firebaseUid: string | null) {
   const stale = Boolean(activeSession && now - activeSession.startAt >= STALE_MS);
 
   const start = useCallback(
-    async (activityId: ActivityId) => {
+    async (activityId: ActivityId, durationMs?: number) => {
       if (!ownerId || pending.current) return;
       pending.current = true;
       const timestamp = Date.now();
       setNow(timestamp);
       const running = sessions.filter((session) => session.endAt === null);
-      const alreadyOnThis = running.some((session) => session.activityId === activityId);
-      const stopped = running.map((session) => ({ ...session, endAt: timestamp }));
+      const alreadyOnThis =
+        !durationMs && running.some((session) => session.activityId === activityId);
+      const stopped = running.map((session) => ({
+        ...session,
+        endAt: timestamp,
+        targetEndAt: session.targetEndAt ?? null,
+      }));
       const nextSession = alreadyOnThis
         ? null
         : {
@@ -210,9 +230,13 @@ export function useWeekTimer(firebaseUid: string | null) {
             activityId,
             startAt: timestamp,
             endAt: null,
+            targetEndAt: durationMs ? timestamp + durationMs : null,
+            manual: false,
           };
       const withoutRunning = sessions.map((session) =>
-        session.endAt === null ? { ...session, endAt: timestamp } : session,
+        session.endAt === null
+          ? { ...session, endAt: timestamp, targetEndAt: session.targetEndAt ?? null }
+          : session,
       );
       const next = nextSession ? [nextSession, ...withoutRunning] : withoutRunning;
       const upserts = [...stopped, ...(nextSession ? [nextSession] : [])];
@@ -234,7 +258,11 @@ export function useWeekTimer(firebaseUid: string | null) {
   const stop = useCallback(async () => {
     if (!ownerId || !activeSession || pending.current) return;
     pending.current = true;
-    const stopped = { ...activeSession, endAt: Date.now() };
+    const stopped = {
+      ...activeSession,
+      endAt: Date.now(),
+      targetEndAt: activeSession.targetEndAt ?? null,
+    };
     const next = sessions.map((session) => (session.id === stopped.id ? stopped : session));
     setSessions(next);
     try {
@@ -246,6 +274,34 @@ export function useWeekTimer(firebaseUid: string | null) {
       pending.current = false;
     }
   }, [activeSession, ownerId, sessions]);
+
+  const addTime = useCallback(
+    async (activityId: ActivityId, durationMs: number) => {
+      if (!ownerId || durationMs <= 0) return;
+      const day = selectedDay ?? new Date();
+      const today = new Date();
+      const endAt = isSameDay(day, today)
+        ? Date.now()
+        : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12, 0, 0).getTime();
+      const session: Session = {
+        id: crypto.randomUUID(),
+        activityId,
+        startAt: endAt - durationMs,
+        endAt,
+        targetEndAt: null,
+        manual: true,
+      };
+      const next = [session, ...sessions];
+      setSessions(next);
+      try {
+        await commitSessions(ownerId, next, [session]);
+        setSyncError(null);
+      } catch (error) {
+        setSyncError(error instanceof Error ? error.message : "Could not save");
+      }
+    },
+    [ownerId, selectedDay, sessions],
+  );
 
   const remove = useCallback(
     async (sessionId: string) => {
@@ -261,6 +317,34 @@ export function useWeekTimer(firebaseUid: string | null) {
     },
     [ownerId, sessions],
   );
+
+  useEffect(() => {
+    if (!enableAlerts) return;
+    const targetEndAt = activeSession?.targetEndAt;
+    if (!activeSession || !targetEndAt) return;
+    if (now < targetEndAt) return;
+    if (completing.current === activeSession.id) return;
+    completing.current = activeSession.id;
+    const session = activeSession;
+    const minutes = Math.max(1, Math.round((targetEndAt - session.startAt) / 60_000));
+    pending.current = false;
+    void (async () => {
+      await stop();
+      try {
+        playTimerSound();
+        await showTimerNotification(session.activityId, minutes);
+        if (notifyEmail) {
+          await emailTimerComplete({
+            email: notifyEmail,
+            activityId: session.activityId,
+            minutes,
+          });
+        }
+      } catch {
+        // Sound/notification/email should not block stopping the timer.
+      }
+    })();
+  }, [activeSession, enableAlerts, now, notifyEmail, stop]);
 
   return {
     ownerId: ownerId ?? "…",
@@ -284,6 +368,7 @@ export function useWeekTimer(firebaseUid: string | null) {
     studyTotal,
     clubTotal,
     lifeTotal,
+    gymTotal,
     previousWeekTotal,
     sessionCount,
     busiestDay,
@@ -293,6 +378,7 @@ export function useWeekTimer(firebaseUid: string | null) {
     stale,
     start,
     stop,
+    addTime,
     remove,
     durationFor,
   };

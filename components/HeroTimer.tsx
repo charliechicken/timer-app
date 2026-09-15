@@ -10,6 +10,8 @@ type HeroTimerProps = {
   weekTotal: number;
   classTotal: number;
   stale: boolean;
+  idleTitle?: string;
+  summary?: string;
   onStop: () => void;
 };
 
@@ -19,23 +21,40 @@ export function HeroTimer({
   weekTotal,
   classTotal,
   stale,
+  idleTitle = "Tap something to start",
+  summary,
   onStop,
 }: HeroTimerProps) {
   const activity = activeSession ? ACTIVITY_MAP[activeSession.activityId] : null;
   const elapsed = activeSession ? now - activeSession.startAt : 0;
+  const remaining =
+    activeSession?.targetEndAt != null
+      ? Math.max(0, activeSession.targetEndAt - now)
+      : null;
 
   return (
     <section className="hero">
       <div className="hero-copy">
-        <p className="eyebrow">{activity ? "Now tracking" : "Ready to track"}</p>
-        <h1>{activity ? activity.label : "Tap something to start"}</h1>
+        <p className="eyebrow">
+          {activity
+            ? remaining != null
+              ? "Countdown"
+              : "Now tracking"
+            : "Ready to track"}
+        </p>
+        <h1>{activity ? activity.label : idleTitle}</h1>
         {stale ? (
           <p className="stale">
             This timer has been running a long time. Stop it if you forgot.
           </p>
+        ) : remaining != null ? (
+          <p className="muted">
+            {formatClock(elapsed)} elapsed · email, notification, and sound at 0:00
+          </p>
         ) : (
           <p className="muted">
-            {formatCompact(weekTotal)} this week · {formatCompact(classTotal)} studying
+            {summary ??
+              `${formatCompact(weekTotal)} this week · ${formatCompact(classTotal)} studying`}
           </p>
         )}
       </div>
@@ -44,7 +63,7 @@ export function HeroTimer({
           className="clock"
           style={{ color: activity?.color ?? "var(--ink)" }}
         >
-          {formatClock(elapsed)}
+          {formatClock(remaining ?? elapsed)}
         </p>
         {activeSession ? (
           <button type="button" className="stop" onClick={onStop}>

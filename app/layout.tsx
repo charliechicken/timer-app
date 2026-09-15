@@ -19,7 +19,7 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "Week timer",
-  description: "Track study, clubs, chess, YouTube, Instagram, and eating for the week.",
+  description: "Track study, gym, clubs, and the rest of the week.",
 };
 
 export const viewport: Viewport = {

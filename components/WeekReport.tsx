@@ -16,6 +16,7 @@ type WeekReportProps = {
   studyTotal: number;
   clubTotal: number;
   lifeTotal: number;
+  gymTotal: number;
   previousWeekTotal: number;
   sessionCount: number;
   busiestDay: DayTotal;
@@ -30,6 +31,7 @@ export function WeekReport({
   studyTotal,
   clubTotal,
   lifeTotal,
+  gymTotal,
   previousWeekTotal,
   sessionCount,
   busiestDay,
@@ -78,6 +80,10 @@ export function WeekReport({
         <article>
           <p>Clubs</p>
           <strong>{formatCompact(clubTotal)}</strong>
+        </article>
+        <article>
+          <p>Gym</p>
+          <strong>{formatCompact(gymTotal)}</strong>
         </article>
         <article>
           <p>Everything else</p>

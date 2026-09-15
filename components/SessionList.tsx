@@ -55,6 +55,8 @@ export function SessionList({
                   <p className="session-label">
                     {activity.label}
                     {session.endAt === null ? <em> live</em> : null}
+                    {session.targetEndAt ? <em> timed</em> : null}
+                    {session.manual ? <em> added</em> : null}
                   </p>
                   <p className="session-time">
                     {started} · {formatCompact(duration)}
