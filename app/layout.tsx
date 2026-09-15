@@ -19,11 +19,11 @@ const fraunces = Fraunces({
 
 export const metadata: Metadata = {
   title: "Week timer",
-  description: "Track classes, chess, YouTube, Instagram, and eating for the week.",
+  description: "Track study, clubs, chess, YouTube, Instagram, and eating for the week.",
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0b0f14",
+  themeColor: "#f4efe6",
   width: "device-width",
   initialScale: 1,
 };

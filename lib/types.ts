@@ -7,9 +7,11 @@ export type ActivityId =
   | "chns-1300"
   | "youtube"
   | "instagram"
-  | "eating";
+  | "eating"
+  | "club-mma"
+  | "club-wrestling";
 
-export type ActivityGroup = "class" | "life";
+export type ActivityGroup = "study" | "club" | "life";
 
 export type Activity = {
   id: ActivityId;

@@ -6,24 +6,11 @@ import {
   setDoc,
   type Unsubscribe,
 } from "firebase/firestore";
+import { isActivityId } from "./activities";
 import { getDb, isFirebaseConfigured } from "./firebase";
-import type { ActivityId, Session } from "./types";
+import type { Session } from "./types";
 
 const LOCAL_KEY = "week-timer-sessions-v1";
-
-function isActivityId(value: string): value is ActivityId {
-  return [
-    "chess",
-    "phil-1125",
-    "econ-2251",
-    "math-2460",
-    "sds-2410",
-    "chns-1300",
-    "youtube",
-    "instagram",
-    "eating",
-  ].includes(value);
-}
 
 function parseSession(raw: unknown): Session | null {
   if (!raw || typeof raw !== "object") return null;
@@ -71,7 +58,7 @@ export function subscribeSessions(
     return () => window.removeEventListener("storage", handler);
   }
 
-  return onSnapshot(collection(db, "owners", ownerId, "sessions"), (snapshot) => {
+  return onSnapshot(collection(db, "users", ownerId, "sessions"), (snapshot) => {
     const sessions = snapshot.docs
       .map((item) => parseSession({ id: item.id, ...item.data() }))
       .filter((session): session is Session => session !== null)
@@ -94,10 +81,10 @@ export async function commitSessions(
 
   await Promise.all([
     ...upserts.map((session) =>
-      setDoc(doc(db, "owners", ownerId, "sessions", session.id), session),
+      setDoc(doc(db, "users", ownerId, "sessions", session.id), session),
     ),
     ...deletes.map((sessionId) =>
-      deleteDoc(doc(db, "owners", ownerId, "sessions", sessionId)),
+      deleteDoc(doc(db, "users", ownerId, "sessions", sessionId)),
     ),
   ]);
 }
@@ -117,4 +104,3 @@ export async function migrateLocalSessionsIfNeeded(
   if (local.length === 0) return;
   await Promise.all(local.map((session) => upsertSession(ownerId, session)));
 }
-

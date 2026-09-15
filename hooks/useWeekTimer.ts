@@ -14,7 +14,7 @@ import type { ActivityId, Session } from "@/lib/types";
 
 const STALE_MS = 8 * 60 * 60 * 1000;
 
-export function useWeekTimer() {
+export function useWeekTimer(firebaseUid: string | null) {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [ready, setReady] = useState(false);
@@ -29,8 +29,16 @@ export function useWeekTimer() {
   const usingFirebase = isFirebaseConfigured();
 
   useEffect(() => {
+    if (usingFirebase) {
+      setOwnerId(firebaseUid);
+      if (!firebaseUid) {
+        setSessions([]);
+        setReady(false);
+      }
+      return;
+    }
     setOwnerId(getOwnerId());
-  }, []);
+  }, [firebaseUid, usingFirebase]);
 
   useEffect(() => {
     if (!ownerId) return;
@@ -118,14 +126,49 @@ export function useWeekTimer() {
     [totalsByActivity],
   );
 
-  const classTotal = useMemo(
-    () =>
-      ACTIVITIES.filter((activity) => activity.group === "class").reduce(
+  const groupTotal = useCallback(
+    (group: (typeof ACTIVITIES)[number]["group"]) =>
+      ACTIVITIES.filter((activity) => activity.group === group).reduce(
         (sum, activity) => sum + totalsByActivity[activity.id],
         0,
       ),
     [totalsByActivity],
   );
+
+  const studyTotal = groupTotal("study");
+  const clubTotal = groupTotal("club");
+  const lifeTotal = groupTotal("life");
+
+  const previousWeekStart = useMemo(
+    () => startOfWeek(new Date(), weekOffset - 1),
+    [weekOffset],
+  );
+  const previousWeekTotal = useMemo(() => {
+    const rangeStart = previousWeekStart.getTime();
+    const rangeEnd = addDays(previousWeekStart, 7).getTime();
+    return sessions.reduce(
+      (sum, session) => sum + durationFor(session, rangeStart, rangeEnd),
+      0,
+    );
+  }, [durationFor, previousWeekStart, sessions]);
+
+  const sessionCount = useMemo(() => {
+    const rangeStart = weekStart.getTime();
+    const rangeEnd = weekEnd.getTime();
+    return sessions.filter(
+      (session) => durationFor(session, rangeStart, rangeEnd) > 0,
+    ).length;
+  }, [durationFor, sessions, weekEnd, weekStart]);
+
+  const busiestDay = useMemo(() => {
+    return totalsByDay.reduce(
+      (best, day) => (day.total > best.total ? day : best),
+      totalsByDay[0] ?? { date: weekStart, total: 0, byActivity: totalsByActivity },
+    );
+  }, [totalsByActivity, totalsByDay, weekStart]);
+
+  const isCompleteWeek = weekOffset < 0;
+  const isWeekEnding = weekOffset === 0 && new Date().getDay() === 0;
 
   const selectedDay = days[selectedDayIndex] ?? days[0];
   const selectedDaySessions = useMemo(() => {
@@ -217,7 +260,14 @@ export function useWeekTimer() {
     totalsByActivity,
     totalsByDay,
     weekTotal,
-    classTotal,
+    studyTotal,
+    clubTotal,
+    lifeTotal,
+    previousWeekTotal,
+    sessionCount,
+    busiestDay,
+    isCompleteWeek,
+    isWeekEnding,
     activeSession,
     stale,
     start,

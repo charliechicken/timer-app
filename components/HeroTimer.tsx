@@ -35,8 +35,7 @@ export function HeroTimer({
           </p>
         ) : (
           <p className="muted">
-            {formatCompact(weekTotal)} this week · {formatCompact(classTotal)} in
-            class
+            {formatCompact(weekTotal)} this week · {formatCompact(classTotal)} studying
           </p>
         )}
       </div>

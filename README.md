@@ -1,14 +1,6 @@
 # Week timer
 
-Personal weekly time tracker for classes, chess, YouTube, Instagram, and eating. Data lives in Firebase Firestore so it can sync across devices after you add project keys.
-
-Tracked activities:
-
-- Chess
-- PHIL 1125, ECON 2251, MATH 2460, S&DS 2410, CHNS 1300
-- YouTube
-- Instagram
-- Eating
+Personal weekly time tracker for studying, clubs, chess, YouTube, Instagram, and eating. Data syncs through Cloud Firestore in production mode after you add project keys and sign in with Google.
 
 ## Run locally
 
@@ -20,13 +12,17 @@ npm run dev
 
 Without Firebase keys, time is stored in this browser only.
 
-## Firebase
+## Create a Firestore database in production mode
 
-1. Create a Firebase project and a Cloud Firestore database.
-2. Paste the web app config values into `.env.local` and into Vercel environment variables.
-3. Set `NEXT_PUBLIC_OWNER_ID` to the same value on every device, for example `charlie`.
-4. Publish rules from `firestore.rules` (Firebase console or `firebase deploy --only firestore:rules`).
+1. Open [Firebase Console](https://console.firebase.google.com/) and create a project (or pick one you already have).
+2. Click the web icon `</>` to add a web app. Copy the config values.
+3. Go to **Build → Firestore Database → Create database**.
+4. Choose **production mode**, pick a region, and create it. Do not use test mode.
+5. Go to **Firestore → Rules**, paste the contents of `firestore.rules`, and publish. Those rules only let a signed-in user read and write their own data.
+6. Go to **Authentication → Sign-in method → Google → Enable**. Add your Vercel domain under **Authentication → Settings → Authorized domains**.
+7. Paste the web config values into `.env.local` and into Vercel → Project → Settings → Environment Variables.
+8. Redeploy on Vercel, then sign in with Google in the app.
 
 ## Deploy
 
-Push to GitHub, then import the repo in Vercel. Add the same `NEXT_PUBLIC_*` variables before the production build.
+The GitHub repo is connected to Vercel. After adding env vars, run a new production deploy.

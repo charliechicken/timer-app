@@ -1,4 +1,13 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
+import {
+  GoogleAuthProvider,
+  getAuth,
+  onAuthStateChanged,
+  signInWithPopup,
+  signOut,
+  type Auth,
+  type User,
+} from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -22,4 +31,31 @@ export function getFirebaseApp(): FirebaseApp | null {
 export function getDb(): Firestore | null {
   const app = getFirebaseApp();
   return app ? getFirestore(app) : null;
+}
+
+export function getAuthClient(): Auth | null {
+  const app = getFirebaseApp();
+  return app ? getAuth(app) : null;
+}
+
+export function watchAuth(onChange: (user: User | null) => void): () => void {
+  const auth = getAuthClient();
+  if (!auth) {
+    onChange(null);
+    return () => undefined;
+  }
+  return onAuthStateChanged(auth, onChange);
+}
+
+export async function signInWithGoogle(): Promise<void> {
+  const auth = getAuthClient();
+  if (!auth) throw new Error("Firebase is not configured");
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  await signInWithPopup(auth, provider);
+}
+
+export async function signOutUser(): Promise<void> {
+  const auth = getAuthClient();
+  if (auth) await signOut(auth);
 }

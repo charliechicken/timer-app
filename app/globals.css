@@ -1,14 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #0b0f14;
-  --bg-soft: #121820;
-  --bg-card: #171f29;
-  --line: rgba(232, 220, 196, 0.1);
-  --ink: #f3ead8;
-  --muted: #9aa6b4;
-  --gold: #d4b483;
-  --danger: #ff7a6e;
+  --bg: #f4efe6;
+  --bg-soft: #fffdf8;
+  --bg-card: #ffffff;
+  --line: rgba(42, 34, 24, 0.1);
+  --ink: #1f2430;
+  --muted: #6b645b;
+  --gold: #8a5a2b;
+  --danger: #c0453a;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-fraunces);
@@ -28,8 +28,8 @@ body {
   color: var(--ink);
   font-family: var(--font-sans), sans-serif;
   background:
-    radial-gradient(1200px 500px at 10% -10%, rgba(212, 180, 131, 0.12), transparent 50%),
-    radial-gradient(900px 420px at 100% 0%, rgba(61, 205, 192, 0.08), transparent 45%),
+    radial-gradient(900px 420px at 8% -8%, rgba(232, 196, 140, 0.45), transparent 55%),
+    radial-gradient(800px 360px at 100% 0%, rgba(168, 206, 198, 0.28), transparent 50%),
     var(--bg);
 }
 
@@ -43,17 +43,18 @@ input {
   margin: 0 auto;
   padding: 28px 0 64px;
   display: grid;
-  gap: 20px;
+  gap: 16px;
 }
 
 .topbar,
 .hero,
 .panel,
-.status {
-  background: rgba(18, 24, 32, 0.88);
+.status,
+.recap-banner {
+  background: var(--bg-soft);
   border: 1px solid var(--line);
-  border-radius: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  border-radius: 22px;
+  box-shadow: 0 10px 30px rgba(64, 48, 24, 0.06);
 }
 
 .topbar {
@@ -61,7 +62,7 @@ input {
   justify-content: space-between;
   align-items: flex-end;
   gap: 16px;
-  padding: 22px 24px;
+  padding: 20px 22px;
 }
 
 .brand,
@@ -74,7 +75,9 @@ input {
 .status,
 .day-total,
 .activity-total,
-.activity-action {
+.activity-action,
+.report-stats p,
+.report-insight {
   color: var(--muted);
 }
 
@@ -100,7 +103,7 @@ h2 {
 }
 
 h3 {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
 }
 
 .week-nav {
@@ -110,9 +113,10 @@ h3 {
 
 .week-nav button,
 .stop,
-.ghost {
+.ghost,
+.recap-banner {
   border: 1px solid var(--line);
-  background: transparent;
+  background: #fff;
   color: var(--ink);
   border-radius: 999px;
   padding: 8px 14px;
@@ -122,7 +126,7 @@ h3 {
 .week-nav button.current,
 .stop {
   background: var(--ink);
-  color: var(--bg);
+  color: #fff;
   border-color: var(--ink);
 }
 
@@ -131,16 +135,24 @@ h3 {
   cursor: not-allowed;
 }
 
+.recap-banner {
+  width: 100%;
+  text-align: left;
+  padding: 16px 20px;
+  border-radius: 22px;
+  font-weight: 600;
+}
+
 .hero {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
   gap: 20px;
-  padding: 28px;
+  padding: 26px;
   align-items: center;
 }
 
 .hero h1 {
-  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-size: clamp(2rem, 5vw, 3.2rem);
   line-height: 1.05;
   margin-bottom: 10px;
 }
@@ -171,9 +183,27 @@ h3 {
 }
 
 .panel {
-  padding: 22px;
+  padding: 20px;
   display: grid;
   gap: 16px;
+}
+
+.panel.featured {
+  border-color: color-mix(in srgb, var(--gold) 35%, var(--line));
+}
+
+.signin {
+  max-width: 32rem;
+  margin: 12vh auto 0;
+  gap: 14px;
+}
+
+.signin h1 {
+  font-size: 2.4rem;
+}
+
+.signin .stop {
+  justify-self: start;
 }
 
 .panel-title {
@@ -193,8 +223,13 @@ h3 {
   gap: 10px;
 }
 
-.grid.classes {
+.grid.study {
   grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.grid.clubs,
+.grid.life {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .grid.life {
@@ -213,17 +248,17 @@ h3 {
   background: var(--bg-card);
   color: var(--ink);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .activity-card:hover {
   transform: translateY(-1px);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
 }
 
 .activity-card.running {
   border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .swatch {
@@ -280,7 +315,7 @@ h3 {
   width: 100%;
   border-radius: 12px 12px 6px 6px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(42, 34, 24, 0.06);
   min-height: 8px;
 }
 
@@ -290,7 +325,7 @@ h3 {
 }
 
 .day-col.selected .bar {
-  outline: 1px solid var(--gold);
+  outline: 2px solid var(--gold);
 }
 
 .day-name,
@@ -299,7 +334,9 @@ h3 {
 }
 
 .session-heading,
-.status {
+.status,
+.report-stats,
+.report-ranks li {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -308,11 +345,13 @@ h3 {
 
 .session-heading p,
 .empty,
-.status {
+.status,
+.report-insight {
   margin: 0;
 }
 
-.session-list ul {
+.session-list ul,
+.report-ranks {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -328,12 +367,14 @@ h3 {
   padding: 12px;
   border-radius: 16px;
   background: var(--bg-card);
+  border: 1px solid var(--line);
 }
 
 .dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
+  display: inline-block;
 }
 
 .session-label,
@@ -346,7 +387,8 @@ h3 {
   font-style: normal;
 }
 
-.session-clock {
+.session-clock,
+.rank-time {
   font-family: var(--font-mono), monospace;
   font-variant-numeric: tabular-nums;
 }
@@ -366,21 +408,74 @@ h3 {
   border-radius: 999px;
   padding: 4px 10px;
   border: 1px solid var(--line);
+  background: #fff;
 }
 
 .pill.live {
-  color: #8be0c8;
+  color: #1f7a6c;
 }
 
 .pill.local {
   color: var(--gold);
 }
 
+.report-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-stats article {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.report-stats p,
+.report-stats strong {
+  margin: 0;
+  display: block;
+}
+
+.report-stats strong {
+  font-size: 1.25rem;
+  margin-top: 4px;
+}
+
+.report-ranks li {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.9fr) 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.rank-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
+.rank-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(42, 34, 24, 0.08);
+  overflow: hidden;
+}
+
+.rank-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+
 @media (max-width: 900px) {
   .hero,
   .topbar,
   .panel-title,
-  .session-heading {
+  .session-heading,
+  .report-stats {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -391,8 +486,9 @@ h3 {
     justify-content: start;
   }
 
-  .grid.classes,
-  .grid.life {
+  .grid.study,
+  .grid.life,
+  .grid.clubs {
     grid-template-columns: 1fr 1fr;
   }
 }
@@ -403,9 +499,11 @@ h3 {
     padding-top: 16px;
   }
 
-  .grid.classes,
+  .grid.study,
   .grid.life,
-  .session-list li {
+  .grid.clubs,
+  .session-list li,
+  .report-ranks li {
     grid-template-columns: 1fr;
   }
 
