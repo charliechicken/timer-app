@@ -54,6 +54,19 @@ export function formatDayLabel(date: Date): string {
   return date.toLocaleDateString("en-US", { weekday: "short" });
 }
 
+export function formatTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function formatHourLabel(hour: number): string {
+  const date = new Date();
+  date.setHours(hour, 0, 0, 0);
+  return date.toLocaleTimeString("en-US", { hour: "numeric" });
+}
+
 export function formatClock(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(total / 3600);

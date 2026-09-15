@@ -47,12 +47,22 @@ export function watchAuth(onChange: (user: User | null) => void): () => void {
   return onAuthStateChanged(auth, onChange);
 }
 
-export async function signInWithGoogle(): Promise<void> {
+export async function signInWithGoogle(options?: {
+  gmailSend?: boolean;
+}): Promise<string | null> {
   const auth = getAuthClient();
   if (!auth) throw new Error("Firebase is not configured");
   const provider = new GoogleAuthProvider();
-  provider.setCustomParameters({ prompt: "select_account" });
-  await signInWithPopup(auth, provider);
+  provider.addScope("email");
+  if (options?.gmailSend) {
+    provider.addScope("https://www.googleapis.com/auth/gmail.send");
+    provider.setCustomParameters({ prompt: "consent" });
+  } else {
+    provider.setCustomParameters({ prompt: "select_account" });
+  }
+  const result = await signInWithPopup(auth, provider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  return credential?.accessToken ?? null;
 }
 
 export async function signOutUser(): Promise<void> {

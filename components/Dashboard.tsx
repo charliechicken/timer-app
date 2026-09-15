@@ -5,6 +5,7 @@ import { requestAlertPermission } from "@/lib/alerts";
 import { formatWeekRange } from "@/lib/time";
 import { ActivityBlock } from "./ActivityBlock";
 import { AppShell } from "./AppShell";
+import { DayView } from "./DayView";
 import { HeroTimer } from "./HeroTimer";
 import { SessionList } from "./SessionList";
 import { WeekChart } from "./WeekChart";
@@ -158,7 +159,7 @@ export function Dashboard() {
       <section className="panel">
         <div className="panel-title">
           <h3>{timer.weekOffset === 0 ? "This week" : "That week"}</h3>
-          <p>Tap a day to see sessions</p>
+          <p>Tap a day for the calendar and daily insights</p>
         </div>
         <WeekChart
           days={timer.totalsByDay}
@@ -166,12 +167,33 @@ export function Dashboard() {
           onSelectDay={timer.setSelectedDayIndex}
         />
         {timer.selectedDay ? (
-          <SessionList
-            date={timer.selectedDay}
-            sessions={timer.selectedDaySessions}
-            now={timer.now}
-            onDelete={(sessionId) => void timer.remove(sessionId)}
-          />
+          <>
+            {timer.undoCount > 0 ? (
+              <div className="undo-bar">
+                <span>Session deleted.</span>
+                <button type="button" className="ghost" onClick={() => void timer.undoRemove()}>
+                  Undo
+                </button>
+              </div>
+            ) : null}
+            <DayView
+              date={timer.selectedDay}
+              sessions={timer.selectedDaySessions}
+              now={timer.now}
+              previousDayTotal={
+                timer.selectedDayIndex > 0
+                  ? timer.totalsByDay[timer.selectedDayIndex - 1]?.total ?? 0
+                  : 0
+              }
+              onDelete={(sessionId) => void timer.remove(sessionId)}
+            />
+            <SessionList
+              date={timer.selectedDay}
+              sessions={timer.selectedDaySessions}
+              now={timer.now}
+              onDelete={(sessionId) => void timer.remove(sessionId)}
+            />
+          </>
         ) : null}
       </section>
 

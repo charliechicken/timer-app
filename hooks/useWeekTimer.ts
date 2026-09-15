@@ -28,6 +28,7 @@ export function useWeekTimer(
   const [sessions, setSessions] = useState<Session[]>([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDayIndex, setSelectedDayIndex] = useState(() => {
@@ -36,7 +37,9 @@ export function useWeekTimer(
   });
   const migrated = useRef(false);
   const pending = useRef(false);
+  const lastDeleted = useRef<Session[]>([]);
   const completing = useRef<string | null>(null);
+  const [undoCount, setUndoCount] = useState(0);
   const usingFirebase = isFirebaseConfigured();
 
   useEffect(() => {
@@ -306,6 +309,10 @@ export function useWeekTimer(
   const remove = useCallback(
     async (sessionId: string) => {
       if (!ownerId) return;
+      const removed = sessions.find((session) => session.id === sessionId);
+      if (!removed) return;
+      lastDeleted.current = [...lastDeleted.current, removed];
+      setUndoCount(lastDeleted.current.length);
       const next = sessions.filter((session) => session.id !== sessionId);
       setSessions(next);
       try {
@@ -317,6 +324,23 @@ export function useWeekTimer(
     },
     [ownerId, sessions],
   );
+
+  const undoRemove = useCallback(async () => {
+    if (!ownerId) return;
+    const restored = lastDeleted.current.pop();
+    setUndoCount(lastDeleted.current.length);
+    if (!restored) return;
+    const next = [restored, ...sessions.filter((session) => session.id !== restored.id)];
+    setSessions(next);
+    try {
+      await commitSessions(ownerId, next, [restored]);
+      setSyncError(null);
+    } catch (error) {
+      lastDeleted.current.push(restored);
+      setUndoCount(lastDeleted.current.length);
+      setSyncError(error instanceof Error ? error.message : "Could not save");
+    }
+  }, [ownerId, sessions]);
 
   useEffect(() => {
     if (!enableAlerts) return;
@@ -334,11 +358,20 @@ export function useWeekTimer(
         playTimerSound();
         await showTimerNotification(session.activityId, minutes);
         if (notifyEmail) {
-          await emailTimerComplete({
+          const result = await emailTimerComplete({
             email: notifyEmail,
             activityId: session.activityId,
             minutes,
           });
+          if (result.pendingConfirm) {
+            setEmailNotice(
+              `Check ${notifyEmail} and confirm the first email so timer alerts can arrive.`,
+            );
+          } else if (!result.ok) {
+            setEmailNotice(result.error ?? "Could not send the timer email.");
+          } else {
+            setEmailNotice(`Emailed ${notifyEmail} that ${minutes}m is done.`);
+          }
         }
       } catch {
         // Sound/notification/email should not block stopping the timer.
@@ -351,6 +384,7 @@ export function useWeekTimer(
     ready,
     usingFirebase,
     syncError,
+    emailNotice,
     now,
     weekOffset,
     goToWeek,
@@ -380,6 +414,8 @@ export function useWeekTimer(
     stop,
     addTime,
     remove,
+    undoRemove,
+    undoCount,
     durationFor,
   };
 }

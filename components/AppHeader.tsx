@@ -11,6 +11,7 @@ type AppHeaderProps = {
   error?: string | null;
   onSignIn?: () => void;
   onSignOut?: () => void;
+  onTestEmail?: () => void;
 };
 
 export function AppHeader({
@@ -21,6 +22,7 @@ export function AppHeader({
   error,
   onSignIn,
   onSignOut,
+  onTestEmail,
 }: AppHeaderProps) {
   const pathname = usePathname();
 
@@ -41,6 +43,11 @@ export function AppHeader({
         {signedIn ? (
           <>
             <span className="account-email">{email ?? "Signed in"}</span>
+            {onTestEmail ? (
+              <button type="button" className="ghost" onClick={onTestEmail}>
+                Test email
+              </button>
+            ) : null}
             {onSignOut ? (
               <button
                 type="button"

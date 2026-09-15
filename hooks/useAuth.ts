@@ -7,6 +7,7 @@ import {
   signOutUser,
   watchAuth,
 } from "@/lib/firebase";
+import { saveGmailToken } from "@/lib/gmail";
 import type { User } from "firebase/auth";
 
 export function useAuth() {
@@ -27,14 +28,17 @@ export function useAuth() {
     });
   }, [usingFirebase]);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (gmailSend = false) => {
     setBusy(true);
     setError(null);
     try {
-      await signInWithGoogle();
+      const token = await signInWithGoogle({ gmailSend });
+      saveGmailToken(token);
+      return true;
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Sign-in failed";
       setError(message);
+      return false;
     } finally {
       setBusy(false);
     }
@@ -45,6 +49,7 @@ export function useAuth() {
     setError(null);
     try {
       await signOutUser();
+      saveGmailToken(null);
     } finally {
       setBusy(false);
     }
