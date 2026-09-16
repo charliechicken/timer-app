@@ -1,6 +1,7 @@
 import { ACTIVITY_MAP } from "./activities";
 import { getGmailToken, sendMailWithGmail } from "./gmail";
 import { sendWithFormSubmit } from "./inboxMail";
+import { timerAlertCopy } from "./timerAlert";
 import type { ActivityId } from "./types";
 
 export function playTimerSound(): void {
@@ -33,29 +34,17 @@ export async function showTimerNotification(
     await Notification.requestPermission();
   }
   if (Notification.permission === "granted") {
-    new Notification(title, { body });
+    new Notification(title, { body, tag: `timer-${Date.now()}` });
   }
 }
 
-export async function sendAppEmail(payload: {
-  email: string;
-  subject: string;
-  text: string;
-}): Promise<{ ok: boolean; pendingConfirm?: boolean; error?: string }> {
-  const token = getGmailToken();
-  if (token) {
-    const gmail = await sendMailWithGmail({
-      to: payload.email,
-      subject: payload.subject,
-      text: payload.text,
-      token,
-    });
-    if (gmail.ok) return { ok: true };
-  }
+type SendResult = {
+  ok: boolean;
+  pendingConfirm?: boolean;
+  error?: string;
+};
 
-  const inbox = await sendWithFormSubmit(payload.email, payload.subject, payload.text);
-  if (inbox.ok) return inbox;
-
+async function postTimerComplete(payload: Record<string, unknown>): Promise<SendResult> {
   const response = await fetch("/api/timer-complete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -67,12 +56,39 @@ export async function sendAppEmail(payload: {
     error?: string;
   };
   if (!response.ok || !body.ok) {
-    return {
-      ok: false,
-      error: body.error ?? inbox.error ?? "Could not send email",
-    };
+    return { ok: false, error: body.error ?? "Could not send email" };
   }
   return { ok: true, pendingConfirm: body.pendingConfirm };
+}
+
+export async function sendAppEmail(payload: {
+  email: string;
+  subject: string;
+  text: string;
+  headers?: Record<string, string>;
+}): Promise<SendResult> {
+  const token = getGmailToken();
+  if (token) {
+    const gmail = await sendMailWithGmail({
+      to: payload.email,
+      from: payload.email,
+      subject: payload.subject,
+      text: payload.text,
+      token,
+      headers: payload.headers,
+    });
+    if (gmail.ok) return { ok: true };
+  }
+
+  const inbox = await sendWithFormSubmit(payload.email, payload.subject, payload.text);
+  if (inbox.ok) return inbox;
+
+  return postTimerComplete({
+    email: payload.email,
+    subject: payload.subject,
+    text: payload.text,
+    headers: payload.headers,
+  });
 }
 
 export async function emailTimerComplete(payload: {
@@ -80,15 +96,14 @@ export async function emailTimerComplete(payload: {
   activityId: ActivityId;
   minutes: number;
   test?: boolean;
-}): Promise<{ ok: boolean; pendingConfirm?: boolean; error?: string }> {
-  const activity = ACTIVITY_MAP[payload.activityId]?.label ?? payload.activityId;
-  const subject = payload.test
-    ? "Week timer email is working"
-    : `${activity} timer finished`;
-  const text = payload.test
-    ? `This is a test email for ${payload.email}. Countdown alerts will come here.`
-    : `Your ${payload.minutes}-minute timer for ${activity} is done.`;
-  return sendAppEmail({ email: payload.email, subject, text });
+}): Promise<SendResult> {
+  const copy = timerAlertCopy(payload);
+  return sendAppEmail({
+    email: payload.email,
+    subject: copy.subject,
+    text: copy.text,
+    headers: copy.headers,
+  });
 }
 
 export async function requestAlertPermission(): Promise<void> {

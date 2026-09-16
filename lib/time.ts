@@ -54,6 +54,17 @@ export function formatDayLabel(date: Date): string {
   return date.toLocaleDateString("en-US", { weekday: "short" });
 }
 
+export function formatAlertStamp(ms = Date.now()): string {
+  return new Date(ms).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 export function formatTime(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-US", {
     hour: "numeric",
