@@ -4,11 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BODY_PARTS,
   DEFAULT_GOALS,
-  EXERCISE_MAP,
+  EXERCISES,
   bestSet,
+  catalogMap,
+  completedSets,
   epley1RM,
-  relativeScore,
+  mergeExerciseCatalog,
+  slugExerciseId,
+  visibleExercises,
   type BodyPart,
+  type Exercise,
   type GymDay,
   type GymGoal,
   type GymLog,
@@ -18,10 +23,12 @@ import {
 import {
   logId,
   saveGymDay,
+  saveGymExercise,
   saveGymGoal,
   saveGymLog,
   seedDefaultGoals,
   subscribeGymDays,
+  subscribeGymExercises,
   subscribeGymGoals,
   subscribeGymLogs,
 } from "@/lib/gymStorage";
@@ -35,6 +42,7 @@ export function useGym(firebaseUid: string | null) {
   const [logs, setLogs] = useState<GymLog[]>([]);
   const [days, setDays] = useState<GymDay[]>([]);
   const [goals, setGoals] = useState<GymGoal[]>([]);
+  const [storedExercises, setStoredExercises] = useState<Exercise[]>([]);
   const [error, setError] = useState<string | null>(null);
   const seeded = useRef(false);
 
@@ -50,6 +58,7 @@ export function useGym(firebaseUid: string | null) {
     if (!ownerId) return;
     const unsubLogs = subscribeGymLogs(ownerId, setLogs, setError);
     const unsubDays = subscribeGymDays(ownerId, setDays, setError);
+    const unsubExercises = subscribeGymExercises(ownerId, setStoredExercises, setError);
     const unsubGoals = subscribeGymGoals(
       ownerId,
       (next) => {
@@ -65,8 +74,15 @@ export function useGym(firebaseUid: string | null) {
       unsubLogs();
       unsubDays();
       unsubGoals();
+      unsubExercises();
     };
   }, [ownerId]);
+
+  const exercises = useMemo(
+    () => mergeExerciseCatalog(storedExercises),
+    [storedExercises],
+  );
+  const exerciseLookup = useMemo(() => catalogMap(exercises), [exercises]);
 
   const saveSplit = useCallback(
     async (split: SplitType, when = new Date()) => {
@@ -83,7 +99,7 @@ export function useGym(firebaseUid: string | null) {
   );
 
   const saveSets = useCallback(
-    async (exerciseId: GymLog["exerciseId"], sets: [GymSet, GymSet], split: SplitType) => {
+    async (exerciseId: string, sets: GymSet[], split: SplitType) => {
       if (!ownerId) return;
       const key = dateKey();
       await saveGymLog(ownerId, {
@@ -92,7 +108,7 @@ export function useGym(firebaseUid: string | null) {
         split,
         loggedAt: Date.now(),
         dateKey: key,
-        sets,
+        sets: sets.length ? sets : [{ weight: 0, reps: 0 }],
       });
     },
     [ownerId],
@@ -104,6 +120,64 @@ export function useGym(firebaseUid: string | null) {
       await saveGymGoal(ownerId, goal);
     },
     [ownerId],
+  );
+
+  const upsertExercise = useCallback(
+    async (exercise: Exercise) => {
+      if (!ownerId) return;
+      await saveGymExercise(ownerId, exercise);
+    },
+    [ownerId],
+  );
+
+  const createExercise = useCallback(
+    async (input: {
+      label: string;
+      split: SplitType;
+      bodyPart: BodyPart;
+      overloadReps: number;
+    }) => {
+      if (!ownerId) return;
+      const inSplit = visibleExercises(exercises, input.split);
+      const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
+      await saveGymExercise(ownerId, {
+        id: slugExerciseId(input.label),
+        label: input.label.trim(),
+        split: input.split,
+        bodyPart: input.bodyPart,
+        overloadReps: input.overloadReps,
+        sortOrder: maxOrder + 10,
+        custom: true,
+        archived: false,
+      });
+    },
+    [exercises, ownerId],
+  );
+
+  const archiveExercise = useCallback(
+    async (exerciseId: string) => {
+      if (!ownerId) return;
+      const current =
+        exercises.find((item) => item.id === exerciseId) ??
+        EXERCISES.find((item) => item.id === exerciseId);
+      if (!current) return;
+      await saveGymExercise(ownerId, { ...current, archived: true });
+    },
+    [exercises, ownerId],
+  );
+
+  const reorderExercises = useCallback(
+    async (split: SplitType, orderedIds: string[]) => {
+      if (!ownerId) return;
+      await Promise.all(
+        orderedIds.map((id, index) => {
+          const current = exercises.find((item) => item.id === id);
+          if (!current) return Promise.resolve();
+          return saveGymExercise(ownerId, { ...current, sortOrder: index * 10, archived: false });
+        }),
+      );
+    },
+    [exercises, ownerId],
   );
 
   const weekStart = startOfWeek();
@@ -121,23 +195,31 @@ export function useGym(firebaseUid: string | null) {
     >;
     for (const log of logs) {
       if (log.loggedAt < start || log.loggedAt >= end) continue;
-      const exercise = EXERCISE_MAP[log.exerciseId];
-      const completed = log.sets.filter((set) => set.weight > 0 || set.reps > 0).length;
-      totals[exercise.bodyPart] += completed;
+      const exercise = exerciseLookup[log.exerciseId];
+      if (!exercise) continue;
+      totals[exercise.bodyPart] += completedSets(log.sets).length;
     }
     return totals;
-  }, [logs, weekStart]);
+  }, [exerciseLookup, logs, weekStart]);
 
   return {
     ownerId,
     error,
     logs,
     days,
+    exercises,
+    exerciseLookup,
     goals: goals.length ? goals : DEFAULT_GOALS,
     weekDays,
     setsByBodyPart,
+    bestSet,
+    epley1RM,
     saveSplit,
     saveSets,
     upsertGoal,
+    upsertExercise,
+    createExercise,
+    archiveExercise,
+    reorderExercises,
   };
 }

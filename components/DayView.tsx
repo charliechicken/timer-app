@@ -11,9 +11,9 @@ import {
 } from "@/lib/time";
 import type { ActivityId, Session } from "@/lib/types";
 
-const HOUR_PX = 104;
-const MIN_EVENT_PX = 36;
-const GAP_PX = 4;
+const HOUR_PX = 72;
+const MIN_EVENT_PX = 22;
+const GAP_PX = 3;
 
 type DayViewProps = {
   date: Date;
@@ -237,11 +237,10 @@ export function DayView({
                   }}
                   title={`${activity.label} · ${formatTime(block.start)} – ${formatTime(block.end)}`}
                 >
-                  <strong>{activity.label}</strong>
+                  <strong>{activity.shortLabel}</strong>
                   <span>
-                    {formatTime(block.start)} – {formatTime(block.end)}
-                    {block.session.endAt === null ? " · live" : ""}
-                    {block.session.manual ? " · added" : ""}
+                    {formatTime(block.start)}–{formatTime(block.end)}
+                    {block.session.endAt === null ? " live" : ""}
                   </span>
                   <button
                     type="button"

@@ -37,32 +37,23 @@ export async function showTimerNotification(
   }
 }
 
-export async function emailTimerComplete(payload: {
+export async function sendAppEmail(payload: {
   email: string;
-  activityId: ActivityId;
-  minutes: number;
-  test?: boolean;
+  subject: string;
+  text: string;
 }): Promise<{ ok: boolean; pendingConfirm?: boolean; error?: string }> {
-  const activity = ACTIVITY_MAP[payload.activityId]?.label ?? payload.activityId;
-  const subject = payload.test
-    ? "Week timer email is working"
-    : `${activity} timer finished`;
-  const text = payload.test
-    ? `This is a test email for ${payload.email}. Countdown alerts will come here.`
-    : `Your ${payload.minutes}-minute timer for ${activity} is done.`;
-
   const token = getGmailToken();
   if (token) {
     const gmail = await sendMailWithGmail({
       to: payload.email,
-      subject,
-      text,
+      subject: payload.subject,
+      text: payload.text,
       token,
     });
     if (gmail.ok) return { ok: true };
   }
 
-  const inbox = await sendWithFormSubmit(payload.email, subject, text);
+  const inbox = await sendWithFormSubmit(payload.email, payload.subject, payload.text);
   if (inbox.ok) return inbox;
 
   const response = await fetch("/api/timer-complete", {
@@ -82,6 +73,22 @@ export async function emailTimerComplete(payload: {
     };
   }
   return { ok: true, pendingConfirm: body.pendingConfirm };
+}
+
+export async function emailTimerComplete(payload: {
+  email: string;
+  activityId: ActivityId;
+  minutes: number;
+  test?: boolean;
+}): Promise<{ ok: boolean; pendingConfirm?: boolean; error?: string }> {
+  const activity = ACTIVITY_MAP[payload.activityId]?.label ?? payload.activityId;
+  const subject = payload.test
+    ? "Week timer email is working"
+    : `${activity} timer finished`;
+  const text = payload.test
+    ? `This is a test email for ${payload.email}. Countdown alerts will come here.`
+    : `Your ${payload.minutes}-minute timer for ${activity} is done.`;
+  return sendAppEmail({ email: payload.email, subject, text });
 }
 
 export async function requestAlertPermission(): Promise<void> {

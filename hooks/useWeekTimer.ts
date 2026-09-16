@@ -14,7 +14,8 @@ import {
   playTimerSound,
   showTimerNotification,
 } from "@/lib/alerts";
-import { addDays, isSameDay, overlapMs, startOfWeek } from "@/lib/time";
+import { addDays, overlapMs, startOfWeek } from "@/lib/time";
+import { placeManualSessions } from "@/lib/placeSessions";
 import type { ActivityId, Session } from "@/lib/types";
 
 const STALE_MS = 8 * 60 * 60 * 1000;
@@ -279,25 +280,26 @@ export function useWeekTimer(
   }, [activeSession, ownerId, sessions]);
 
   const addTime = useCallback(
-    async (activityId: ActivityId, durationMs: number) => {
+    async (
+      activityId: ActivityId,
+      durationMs: number,
+      options?: { startAt?: number; spread?: boolean },
+    ) => {
       if (!ownerId || durationMs <= 0) return;
       const day = selectedDay ?? new Date();
-      const today = new Date();
-      const endAt = isSameDay(day, today)
-        ? Date.now()
-        : new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12, 0, 0).getTime();
-      const session: Session = {
-        id: crypto.randomUUID(),
+      const placed = placeManualSessions({
         activityId,
-        startAt: endAt - durationMs,
-        endAt,
-        targetEndAt: null,
-        manual: true,
-      };
-      const next = [session, ...sessions];
+        durationMs,
+        day,
+        existing: sessions,
+        startAt: options?.startAt,
+        spread: options?.spread,
+      });
+      if (!placed.length) return;
+      const next = [...placed, ...sessions];
       setSessions(next);
       try {
-        await commitSessions(ownerId, next, [session]);
+        await commitSessions(ownerId, next, placed);
         setSyncError(null);
       } catch (error) {
         setSyncError(error instanceof Error ? error.message : "Could not save");

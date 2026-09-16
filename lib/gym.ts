@@ -11,24 +11,7 @@ export type BodyPart =
 
 export type SplitType = "full-body" | "isolation";
 
-export type ExerciseId =
-  | "unilateral-calf-raise"
-  | "machine-leg-press"
-  | "barbell-bench-press"
-  | "lateral-raise-machine"
-  | "weighted-pullup"
-  | "weighted-dips"
-  | "leg-extension"
-  | "barbell-rdl"
-  | "db-tricep-extension"
-  | "weighted-russian-twist"
-  | "db-lateral-raise"
-  | "bicep-curl"
-  | "machine-shoulder-press"
-  | "calf-raise-machine"
-  | "hanging-leg-raises"
-  | "weighted-crunches"
-  | "skull-crushers";
+export type ExerciseId = string;
 
 export type Exercise = {
   id: ExerciseId;
@@ -36,6 +19,9 @@ export type Exercise = {
   split: SplitType;
   bodyPart: BodyPart;
   overloadReps: number;
+  sortOrder?: number;
+  custom?: boolean;
+  archived?: boolean;
 };
 
 export type GymSet = {
@@ -49,7 +35,7 @@ export type GymLog = {
   split: SplitType;
   loggedAt: number;
   dateKey: string;
-  sets: [GymSet, GymSet];
+  sets: GymSet[];
 };
 
 export type GymDay = {
@@ -78,7 +64,7 @@ export const BODY_PARTS: BodyPart[] = [
   "back",
 ];
 
-export const EXERCISES: Exercise[] = [
+const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
   {
     id: "unilateral-calf-raise",
     label: "Unilateral leg press calf raise",
@@ -200,9 +186,27 @@ export const EXERCISES: Exercise[] = [
   },
 ];
 
-export const EXERCISE_MAP: Record<ExerciseId, Exercise> = Object.fromEntries(
+export const EXERCISES: Exercise[] = BASE_EXERCISES.map((exercise, index) => ({
+  ...exercise,
+  sortOrder: index * 10,
+  custom: false,
+  archived: false,
+}));
+
+export const EXERCISE_MAP: Record<string, Exercise> = Object.fromEntries(
   EXERCISES.map((exercise) => [exercise.id, exercise]),
-) as Record<ExerciseId, Exercise>;
+);
+
+export const LIFT_COLORS = [
+  "#3d86c4",
+  "#c0453a",
+  "#2a9d8f",
+  "#8a5a2b",
+  "#7b5ea7",
+  "#e76f51",
+  "#457b9d",
+  "#2a9d4f",
+];
 
 export const DEFAULT_GOALS: GymGoal[] = [
   {
@@ -219,8 +223,40 @@ export const DEFAULT_GOALS: GymGoal[] = [
   },
 ];
 
-export function exercisesForSplit(split: SplitType): Exercise[] {
-  return EXERCISES.filter((exercise) => exercise.split === split);
+export function catalogMap(exercises: Exercise[]): Record<string, Exercise> {
+  return Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise]));
+}
+
+export function mergeExerciseCatalog(stored: Exercise[]): Exercise[] {
+  const overlays = new Map(stored.map((exercise) => [exercise.id, exercise]));
+  const merged = EXERCISES.map((exercise) => {
+    const overlay = overlays.get(exercise.id);
+    return overlay ? { ...exercise, ...overlay, custom: false } : exercise;
+  });
+  for (const exercise of stored) {
+    if (!merged.some((item) => item.id === exercise.id)) merged.push(exercise);
+  }
+  return merged.sort(
+    (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label),
+  );
+}
+
+export function visibleExercises(exercises: Exercise[], split?: SplitType): Exercise[] {
+  return exercises.filter(
+    (exercise) => !exercise.archived && (!split || exercise.split === split),
+  );
+}
+
+export function exerciseLabel(exerciseId: string, exercises: Exercise[]): string {
+  return (
+    exercises.find((exercise) => exercise.id === exerciseId)?.label ??
+    EXERCISE_MAP[exerciseId]?.label ??
+    exerciseId
+  );
+}
+
+export function exercisesForSplit(split: SplitType, catalog = EXERCISES): Exercise[] {
+  return visibleExercises(catalog, split);
 }
 
 export function suggestedSplit(date = new Date()): SplitType | "rest" {
@@ -250,9 +286,34 @@ export function relativeScore(set: GymSet, overloadReps: number): number {
 }
 
 export function isExerciseId(value: string): value is ExerciseId {
-  return value in EXERCISE_MAP;
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+export function isBodyPart(value: string): value is BodyPart {
+  return (BODY_PARTS as string[]).includes(value);
 }
 
 export function bodyPartLabel(part: BodyPart): string {
   return part[0].toUpperCase() + part.slice(1);
+}
+
+export function emaSeries(values: number[], alpha = 0.35): number[] {
+  if (values.length === 0) return [];
+  const series = [values[0]];
+  for (let index = 1; index < values.length; index += 1) {
+    series.push(alpha * values[index] + (1 - alpha) * series[index - 1]);
+  }
+  return series;
+}
+
+export function completedSets(sets: GymSet[]): GymSet[] {
+  return sets.filter((set) => set.weight > 0 || set.reps > 0);
+}
+
+export function slugExerciseId(label: string): string {
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `custom-${slug || "lift"}-${Date.now().toString(36)}`;
 }

@@ -390,6 +390,7 @@ h3 {
 
 .countdown-form input,
 .goal-form input,
+.goal-form select,
 .set-fields input,
 .select-row select {
   width: 100%;
@@ -422,11 +423,10 @@ h3 {
   align-items: center;
 }
 
-.body-parts,
-.set-grid,
 .gym-exercises {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(15.25rem, 1fr));
 }
 
 .body-parts {
@@ -470,11 +470,24 @@ h3 {
 
 .gym-card {
   display: grid;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 18px;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--btn-strong) 18%, var(--line));
   background: var(--bg-card);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, outline 0.18s ease;
+  position: relative;
+}
+
+.gym-card.dragging {
+  transform: scale(1.045) rotate(1.15deg);
+  box-shadow: 0 18px 36px rgba(20, 40, 70, 0.28);
+  z-index: 5;
+}
+
+.gym-card.drop-over {
+  transform: translateY(8px);
+  outline: 2px dashed var(--btn-strong);
 }
 
 .gym-card-head {
@@ -482,6 +495,55 @@ h3 {
   justify-content: space-between;
   gap: 12px;
   align-items: start;
+}
+
+.drag-handle {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: grab;
+  padding: 4px 6px;
+  letter-spacing: -0.15em;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.set-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 12px);
+}
+
+.set-delete {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 0.78rem;
+  padding: 0;
+}
+
+.set-delete:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.set-fields.drop-target {
+  outline: 2px solid var(--btn-strong);
+}
+
+.modal-card {
+  width: min(36rem, 100%);
+  max-height: min(80vh, 40rem);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
 }
 
 .gym-card-head p,
@@ -495,17 +557,28 @@ h3 {
 }
 
 .set-grid {
-  grid-template-columns: 1fr 1fr;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+}
+
+.gym-card-head h3 {
+  font-size: 1.02rem;
 }
 
 .set-fields {
   margin: 0;
-  padding: 12px;
-  border-radius: 14px;
+  padding: 8px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--btn-strong) 16%, var(--line));
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 6px;
+}
+
+.set-fields input::placeholder {
+  color: #8a9aab;
+  opacity: 1;
 }
 
 .set-fields legend {
@@ -526,6 +599,7 @@ h3 {
 .chart-wrap {
   display: grid;
   gap: 8px;
+  position: relative;
 }
 
 .session-chart {
@@ -533,16 +607,12 @@ h3 {
   height: auto;
   background: var(--bg-card);
   border-radius: 16px;
+  overflow: visible;
 }
 
-.session-line {
-  fill: none;
-  stroke: var(--btn-strong);
-  stroke-width: 3;
-}
-
-.session-chart circle {
-  fill: var(--btn-strong);
+.session-chart circle.chart-hit {
+  fill: transparent;
+  cursor: pointer;
 }
 
 .goal-line {
@@ -609,25 +679,25 @@ h3 {
 .gcal-event {
   position: absolute;
   box-sizing: border-box;
-  padding: 10px 28px 10px 12px;
-  border-radius: 12px;
+  padding: 4px 16px 4px 6px;
+  border-radius: 8px;
   color: #fff;
   overflow: hidden;
   display: grid;
   align-content: start;
-  gap: 4px;
-  box-shadow: 0 6px 16px rgba(20, 40, 70, 0.2);
+  gap: 1px;
+  box-shadow: 0 4px 10px rgba(20, 40, 70, 0.16);
 }
 
 .gcal-event strong,
 .gcal-event span {
   display: block;
-  font-size: 0.88rem;
-  line-height: 1.25;
+  font-size: 9px;
+  line-height: 1.2;
 }
 
 .gcal-event strong {
-  font-size: 0.95rem;
+  font-size: 9px;
 }
 
 .gcal-event span {
@@ -645,6 +715,117 @@ h3 {
   font-size: 1.15rem;
   line-height: 1;
   padding: 0 2px;
+}
+
+.todo-form .todo-title-field {
+  flex: 1 1 16rem;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.todo-list li {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(8rem, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 16%, var(--line));
+  border-left: 4px solid var(--cortisol, var(--btn-strong));
+  position: relative;
+}
+
+.todo-shift {
+  display: grid;
+  gap: 2px;
+}
+
+.todo-shift button {
+  width: 1.75rem;
+  height: 1.15rem;
+  padding: 0;
+  line-height: 1;
+  font-size: 0.72rem;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 22%, var(--line));
+  background: var(--bg-soft);
+  color: inherit;
+  cursor: pointer;
+}
+
+.todo-shift button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.todo-rank {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 2.75rem;
+  padding: 2px 8px 2px 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cortisol) 18%, var(--bg-soft));
+  color: var(--cortisol);
+  font-weight: 800;
+  font-size: 0.82rem;
+  letter-spacing: -0.02em;
+}
+
+.todo-face {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+.todo-rank-n {
+  min-width: 0.85rem;
+  text-align: center;
+}
+
+.todo-list li.done .todo-rank {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+
+
+.todo-list li.done .todo-name {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.todo-check {
+  display: grid;
+  place-items: center;
+}
+
+.todo-name,
+.todo-list input[type="date"],
+.todo-priority select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 9px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 22%, var(--line));
+  background: var(--bg-soft);
+  color: inherit;
+}
+
+.todo-priority {
+  display: grid;
+  gap: 2px;
+}
+
+.todo-priority span {
+  color: var(--muted);
+  font-size: 0.7rem;
 }
 
 .undo-bar {
@@ -935,6 +1116,256 @@ h3 {
   border-radius: inherit;
 }
 
+.spread-check {
+  display: flex !important;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+}
+
+.spread-check span {
+  font-size: 0.78rem;
+}
+
+.week-cal {
+  display: grid;
+  gap: 8px;
+}
+
+.week-cal-grid {
+  display: grid;
+  grid-template-columns: 2.4rem repeat(7, minmax(0, 1fr));
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 18%, var(--line));
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--bg-soft);
+}
+
+.week-cal-hours {
+  display: grid;
+  font-size: 9px;
+  color: var(--muted);
+  text-align: right;
+  padding-right: 4px;
+}
+
+.week-cal-hours span {
+  height: 22px;
+  transform: translateY(-0.35em);
+}
+
+.week-cal-day {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--btn-strong) 12%, var(--line));
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.week-cal-day.selected {
+  background: color-mix(in srgb, var(--btn) 55%, transparent);
+}
+
+.week-cal-day strong {
+  font-size: 9px;
+  padding: 6px 4px 4px;
+  font-family: var(--font-sans), sans-serif;
+}
+
+.week-cal-track {
+  position: relative;
+  display: block;
+}
+
+.week-cal-line {
+  display: block;
+  border-top: 1px solid color-mix(in srgb, var(--btn-strong) 10%, var(--line));
+}
+
+.week-cal-event {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.1;
+  padding: 1px 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.week-cal-hint {
+  margin: 0;
+  font-size: 0.78rem;
+}
+
+.chart-grid {
+  stroke: color-mix(in srgb, var(--btn-strong) 16%, var(--line));
+  stroke-width: 1;
+}
+
+.chart-axis-line {
+  stroke: color-mix(in srgb, var(--btn-strong) 40%, var(--ink));
+  stroke-width: 1.2;
+}
+
+.chart-axis,
+.chart-point {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.chart-point {
+  fill: var(--ink);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.chart-tooltip {
+  position: absolute;
+  z-index: 4;
+  transform: translate(-50%, calc(-100% - 14px));
+  min-width: 9rem;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 0.78rem;
+  display: grid;
+  gap: 2px;
+  pointer-events: none;
+  box-shadow: 0 8px 20px rgba(20, 40, 70, 0.25);
+}
+
+.chart-tooltip strong {
+  font-size: 0.82rem;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.chart-legend em {
+  color: var(--muted);
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 0.75rem;
+}
+
+.chart-key {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.lift-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.lift-picks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 18%, var(--line));
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.lift-picks label.on {
+  background: var(--btn);
+  color: var(--btn-ink);
+}
+
+.menu-wrap {
+  position: relative;
+}
+
+.icon-btn {
+  min-width: 2.2rem;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.menu-pop {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 6;
+  display: grid;
+  min-width: 11rem;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 24px rgba(20, 40, 70, 0.16);
+}
+
+.menu-pop button {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.menu-pop button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.reorder-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.reorder-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 16%, var(--line));
+}
+
+.confirm-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 32, 48, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 20;
+  padding: 16px;
+}
+
+.confirm-modal .panel {
+  width: min(28rem, 100%);
+  display: grid;
+  gap: 12px;
+}
+
 @media (max-width: 900px) {
   .hero,
   .topbar,
@@ -946,6 +1377,10 @@ h3 {
   .day-stats {
     grid-template-columns: 1fr;
     display: grid;
+  }
+
+  .week-cal-grid {
+    overflow-x: auto;
   }
 
   .hero-clock,
@@ -971,7 +1406,8 @@ h3 {
   .grid.life,
   .grid.clubs,
   .session-list li,
-  .report-ranks li {
+  .report-ranks li,
+  .todo-list li {
     grid-template-columns: 1fr;
   }
 
@@ -986,7 +1422,8 @@ h3 {
   .chooser-grid,
   .goal-form,
   .set-grid,
-  .body-parts {
+  .body-parts,
+  .gym-exercises {
     grid-template-columns: 1fr;
   }
 }

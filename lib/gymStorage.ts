@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   setDoc,
@@ -8,18 +9,20 @@ import {
 import { getDb, isFirebaseConfigured } from "./firebase";
 import {
   DEFAULT_GOALS,
+  isBodyPart,
   isExerciseId,
+  type Exercise,
   type GymDay,
   type GymGoal,
   type GymLog,
   type GymSet,
-  type SplitType,
 } from "./gym";
 import { formatFirebaseError } from "./storage";
 
 const LOG_KEY = "gym-logs-v1";
 const DAY_KEY = "gym-days-v1";
 const GOAL_KEY = "gym-goals-v1";
+const EXERCISE_KEY = "gym-exercises-v1";
 
 function parseSet(raw: unknown): GymSet | null {
   if (!raw || typeof raw !== "object") return null;
@@ -41,17 +44,16 @@ function parseLog(raw: unknown): GymLog | null {
   if (typeof value.loggedAt !== "number" || typeof value.dateKey !== "string") {
     return null;
   }
-  if (!Array.isArray(value.sets) || value.sets.length < 2) return null;
-  const first = parseSet(value.sets[0]);
-  const second = parseSet(value.sets[1]);
-  if (!first || !second) return null;
+  if (!Array.isArray(value.sets)) return null;
+  const sets = value.sets.map(parseSet).filter((set): set is GymSet => set !== null);
+  if (sets.length === 0) return null;
   return {
     id: value.id,
     exerciseId: value.exerciseId,
     split: value.split,
     loggedAt: value.loggedAt,
     dateKey: value.dateKey,
-    sets: [first, second],
+    sets,
   };
 }
 
@@ -89,6 +91,26 @@ function parseGoal(raw: unknown): GymGoal | null {
   };
 }
 
+function parseExercise(raw: unknown): Exercise | null {
+  if (!raw || typeof raw !== "object") return null;
+  const value = raw as Record<string, unknown>;
+  if (typeof value.id !== "string" || !isExerciseId(value.id)) return null;
+  if (typeof value.label !== "string" || !value.label.trim()) return null;
+  if (value.split !== "full-body" && value.split !== "isolation") return null;
+  if (typeof value.bodyPart !== "string" || !isBodyPart(value.bodyPart)) return null;
+  if (typeof value.overloadReps !== "number" || value.overloadReps <= 0) return null;
+  return {
+    id: value.id,
+    label: value.label.trim(),
+    split: value.split,
+    bodyPart: value.bodyPart,
+    overloadReps: value.overloadReps,
+    sortOrder: typeof value.sortOrder === "number" ? value.sortOrder : undefined,
+    custom: value.custom === true,
+    archived: value.archived === true,
+  };
+}
+
 function loadLocal<T>(key: string, parse: (raw: unknown) => T | null): T[] {
   if (typeof window === "undefined") return [];
   try {
@@ -107,7 +129,7 @@ function saveLocal<T>(key: string, value: T[]): void {
 
 function subscribeCollection<T>(
   ownerId: string,
-  name: "gymLogs" | "gymDays" | "gymGoals",
+  name: "gymLogs" | "gymDays" | "gymGoals" | "gymExercises",
   localKey: string,
   parse: (raw: unknown) => T | null,
   onChange: (items: T[]) => void,
@@ -143,7 +165,7 @@ function subscribeCollection<T>(
 
 async function upsertDoc<T extends { id: string }>(
   ownerId: string,
-  name: "gymLogs" | "gymDays" | "gymGoals",
+  name: "gymLogs" | "gymDays" | "gymGoals" | "gymExercises",
   localKey: string,
   parse: (raw: unknown) => T | null,
   item: T,
@@ -156,6 +178,24 @@ async function upsertDoc<T extends { id: string }>(
     return;
   }
   await setDoc(doc(db, "users", ownerId, name, item.id), item);
+}
+
+async function removeDoc<T extends { id: string }>(
+  ownerId: string,
+  name: "gymLogs" | "gymDays" | "gymGoals" | "gymExercises",
+  localKey: string,
+  parse: (raw: unknown) => T | null,
+  id: string,
+): Promise<void> {
+  const db = getDb();
+  if (!db) {
+    saveLocal(
+      localKey,
+      loadLocal(localKey, parse).filter((entry) => entry.id !== id),
+    );
+    return;
+  }
+  await deleteDoc(doc(db, "users", ownerId, name, id));
 }
 
 export function subscribeGymLogs(
@@ -182,6 +222,21 @@ export function subscribeGymGoals(
   return subscribeCollection(ownerId, "gymGoals", GOAL_KEY, parseGoal, onChange, onError);
 }
 
+export function subscribeGymExercises(
+  ownerId: string,
+  onChange: (exercises: Exercise[]) => void,
+  onError?: (message: string) => void,
+): Unsubscribe {
+  return subscribeCollection(
+    ownerId,
+    "gymExercises",
+    EXERCISE_KEY,
+    parseExercise,
+    onChange,
+    onError,
+  );
+}
+
 export async function saveGymLog(ownerId: string, log: GymLog): Promise<void> {
   await upsertDoc(ownerId, "gymLogs", LOG_KEY, parseLog, log);
 }
@@ -192,6 +247,14 @@ export async function saveGymDay(ownerId: string, day: GymDay): Promise<void> {
 
 export async function saveGymGoal(ownerId: string, goal: GymGoal): Promise<void> {
   await upsertDoc(ownerId, "gymGoals", GOAL_KEY, parseGoal, goal);
+}
+
+export async function saveGymExercise(ownerId: string, exercise: Exercise): Promise<void> {
+  await upsertDoc(ownerId, "gymExercises", EXERCISE_KEY, parseExercise, exercise);
+}
+
+export async function deleteGymExercise(ownerId: string, id: string): Promise<void> {
+  await removeDoc(ownerId, "gymExercises", EXERCISE_KEY, parseExercise, id);
 }
 
 export async function seedDefaultGoals(

@@ -4,15 +4,13 @@ import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useGym } from "@/hooks/useGym";
-import {
-  EXERCISES,
-  EXERCISE_MAP,
-  bestSet,
-  epley1RM,
-  type ExerciseId,
-} from "@/lib/gym";
+import { useWeekTimer } from "@/hooks/useWeekTimer";
+import { LIFT_COLORS, epley1RM, visibleExercises } from "@/lib/gym";
+import { gymWeekStats, liftSeries } from "@/lib/gymStats";
 import { addDays, startOfDay, startOfWeek } from "@/lib/time";
 import { AppShell } from "./AppShell";
+import { GymWeekPanel } from "./GymWeekPanel";
+import { LiftChart } from "./LiftChart";
 
 type Range = "week" | "month" | "3mo" | "6mo" | "year";
 
@@ -36,30 +34,52 @@ function rangeStart(range: Range): Date {
 export function GymProgress() {
   const auth = useAuth();
   const gym = useGym(auth.user?.uid ?? null);
+  const timer = useWeekTimer(auth.user?.uid ?? null);
+  const catalog = visibleExercises(gym.exercises);
   const [range, setRange] = useState<Range>("month");
-  const [exerciseId, setExerciseId] = useState<ExerciseId>("barbell-bench-press");
+  const [selected, setSelected] = useState<string[]>(["barbell-bench-press"]);
+  const [normalize, setNormalize] = useState(false);
   const [weight, setWeight] = useState("200");
   const [reps, setReps] = useState("5");
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const exercise = EXERCISE_MAP[exerciseId];
-  const goal = gym.goals.find((item) => item.exerciseId === exerciseId);
+  const focusId = selected[0] ?? catalog[0]?.id ?? "barbell-bench-press";
+  const exercise = gym.exerciseLookup[focusId];
+  const goal = gym.goals.find((item) => item.exerciseId === focusId);
   const from = rangeStart(range).getTime();
 
-  const points = useMemo(() => {
-    return gym.logs
-      .filter((log) => log.exerciseId === exerciseId && log.loggedAt >= from)
-      .sort((a, b) => a.loggedAt - b.loggedAt)
-      .map((log) => {
-        const set = bestSet(log.sets);
-        return {
-          t: log.loggedAt,
-          y: epley1RM(set.weight, set.reps),
-          label: `${set.weight} × ${set.reps}`,
-        };
-      });
-  }, [exerciseId, from, gym.logs]);
+  const series = useMemo(
+    () =>
+      selected.map((exerciseId, index) =>
+        liftSeries(
+          gym.logs,
+          exerciseId,
+          gym.exercises,
+          LIFT_COLORS[index % LIFT_COLORS.length],
+          from,
+        ),
+      ),
+    [from, gym.exercises, gym.logs, selected],
+  );
 
-  const goalY = goal ? epley1RM(goal.weight, goal.reps) : undefined;
+  const weekStats = useMemo(
+    () => gymWeekStats(gym.logs, gym.days, timer.sessions, gym.exercises),
+    [gym.days, gym.exercises, gym.logs, timer.sessions],
+  );
+
+  function toggleLift(exerciseId: string) {
+    setSelected((current) => {
+      if (current.includes(exerciseId)) {
+        return current.length === 1 ? current : current.filter((id) => id !== exerciseId);
+      }
+      return [...current, exerciseId];
+    });
+    const nextGoal = gym.goals.find((item) => item.exerciseId === exerciseId);
+    if (nextGoal) {
+      setWeight(String(nextGoal.weight));
+      setReps(String(nextGoal.reps));
+    }
+  }
 
   function handleGoal(event: FormEvent) {
     event.preventDefault();
@@ -67,8 +87,8 @@ export function GymProgress() {
     const nextReps = Number(reps);
     if (!nextWeight || !nextReps) return;
     void gym.upsertGoal({
-      id: goal?.id ?? `goal-${exerciseId}`,
-      exerciseId,
+      id: goal?.id ?? `goal-${focusId}`,
+      exerciseId: focusId,
       weight: nextWeight,
       reps: nextReps,
     });
@@ -79,7 +99,7 @@ export function GymProgress() {
       <header className="topbar">
         <div>
           <p className="brand">Gym progress</p>
-          <h2>{exercise.label}</h2>
+          <h2>{selected.length > 1 ? "Compared lifts" : exercise?.label ?? "Lifts"}</h2>
         </div>
         <Link href="/gym" className="ghost">
           Back to gym
@@ -88,10 +108,21 @@ export function GymProgress() {
 
       {gym.error ? <p className="sync-error">{gym.error}</p> : null}
 
+      <GymWeekPanel
+        stats={weekStats}
+        series={series}
+        email={auth.user?.email}
+        notice={notice}
+        onNotice={setNotice}
+      />
+
       <section className="panel">
         <div className="panel-title">
-          <h3>Every session</h3>
-          <p>Estimated 1RM from the better of the two sets</p>
+          <h3>Epley e1RM</h3>
+          <p>
+            Best set each session: weight × (1 + reps / 30). Dashed segments are PRs vs the previous
+            log. Dotted line is EMA.
+          </p>
         </div>
         <div className="split-pick">
           {RANGES.map((item) => (
@@ -104,33 +135,38 @@ export function GymProgress() {
               {item.label}
             </button>
           ))}
-        </div>
-        <label className="select-row">
-          <span>Exercise</span>
-          <select
-            value={exerciseId}
-            onChange={(event) => {
-              const next = event.target.value as ExerciseId;
-              setExerciseId(next);
-              const nextGoal = gym.goals.find((item) => item.exerciseId === next);
-              setWeight(String(nextGoal?.weight ?? ""));
-              setReps(String(nextGoal?.reps ?? ""));
-            }}
+          <button
+            type="button"
+            className={normalize ? "stop" : "ghost"}
+            onClick={() => setNormalize((value) => !value)}
           >
-            {EXERCISES.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <SessionChart points={points} goal={goalY} goalLabel={goal ? `${goal.weight} × ${goal.reps}` : undefined} />
+            {normalize ? "Indexed" : "Raw lb"}
+          </button>
+        </div>
+        <div className="lift-picks">
+          {catalog.map((item) => (
+            <label key={item.id} className={selected.includes(item.id) ? "on" : ""}>
+              <input
+                type="checkbox"
+                checked={selected.includes(item.id)}
+                onChange={() => toggleLift(item.id)}
+              />
+              {item.label}
+            </label>
+          ))}
+        </div>
+        <LiftChart
+          series={series}
+          goal={selected.length === 1 && goal ? epley1RM(goal.weight, goal.reps) : undefined}
+          goalLabel={goal ? `${goal.weight} x ${goal.reps}` : undefined}
+          normalize={normalize}
+        />
       </section>
 
       <section className="panel">
         <div className="panel-title">
-          <h3>Goal for this lift</h3>
-          <p>Saved to your signed-in account. Bench 200×5 and RDL 225×7 are already there.</p>
+          <h3>Goal for {exercise?.label ?? "this lift"}</h3>
+          <p>Applies to the first checked lift. Bench 200×5 and RDL 225×7 are already there.</p>
         </div>
         <form className="goal-form" onSubmit={handleGoal}>
           <label>
@@ -159,62 +195,5 @@ export function GymProgress() {
         </form>
       </section>
     </AppShell>
-  );
-}
-
-function SessionChart({
-  points,
-  goal,
-  goalLabel,
-}: {
-  points: { t: number; y: number; label: string }[];
-  goal?: number;
-  goalLabel?: string;
-}) {
-  const width = 720;
-  const height = 260;
-  const pad = { l: 44, r: 16, t: 16, b: 28 };
-  const ys = [...points.map((point) => point.y), ...(goal ? [goal] : []), 1];
-  const minY = 0;
-  const maxY = Math.max(...ys) * 1.1;
-  const minX = points[0]?.t ?? Date.now();
-  const maxX = points[points.length - 1]?.t ?? minX + 1;
-  const spanX = Math.max(1, maxX - minX);
-
-  const xOf = (t: number) => pad.l + ((t - minX) / spanX) * (width - pad.l - pad.r);
-  const yOf = (y: number) => pad.t + (1 - (y - minY) / (maxY - minY)) * (height - pad.t - pad.b);
-  const path = points
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${xOf(point.t)} ${yOf(point.y)}`)
-    .join(" ");
-
-  return (
-    <div className="chart-wrap">
-      <svg viewBox={`0 0 ${width} ${height}`} className="session-chart" role="img">
-        {goal ? (
-          <line
-            x1={pad.l}
-            x2={width - pad.r}
-            y1={yOf(goal)}
-            y2={yOf(goal)}
-            className="goal-line"
-          />
-        ) : null}
-        {path ? <path d={path} className="session-line" /> : null}
-        {points.map((point) => (
-          <circle key={point.t} cx={xOf(point.t)} cy={yOf(point.y)} r="5">
-            <title>{`${new Date(point.t).toLocaleDateString()} · ${point.label}`}</title>
-          </circle>
-        ))}
-        <text x={pad.l} y={14} className="chart-label">
-          Est. 1RM (lb)
-        </text>
-        {goal && goalLabel ? (
-          <text x={width - pad.r} y={yOf(goal) - 6} textAnchor="end" className="chart-label">
-            Goal {goalLabel}
-          </text>
-        ) : null}
-      </svg>
-      {points.length === 0 ? <p className="empty">No sessions in this range yet.</p> : null}
-    </div>
   );
 }

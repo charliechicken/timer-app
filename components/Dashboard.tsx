@@ -8,14 +8,18 @@ import { AppShell } from "./AppShell";
 import { DayView } from "./DayView";
 import { HeroTimer } from "./HeroTimer";
 import { SessionList } from "./SessionList";
+import { WeekCalendar } from "./WeekCalendar";
+import { WeekTodo } from "./WeekTodo";
 import { WeekChart } from "./WeekChart";
 import { WeekReport } from "./WeekReport";
 import { useAuth } from "@/hooks/useAuth";
+import { useWeekTasks } from "@/hooks/useWeekTasks";
 import { useWeekTimer } from "@/hooks/useWeekTimer";
 
 export function Dashboard() {
   const auth = useAuth();
   const timer = useWeekTimer(auth.user?.uid ?? null);
+  const todos = useWeekTasks(auth.user?.uid ?? null, timer.weekStart);
   const study = activitiesInGroup("study");
   const clubs = activitiesInGroup("club");
   const life = activitiesInGroup("life");
@@ -96,6 +100,18 @@ export function Dashboard() {
         />
       ) : null}
 
+      <WeekTodo
+        weekStart={timer.weekStart}
+        tasks={todos.weekTasks}
+        error={todos.error}
+        onAdd={todos.addTask}
+        onDue={(id, dueKey) => todos.updateTask(id, { dueKey })}
+        onTitle={(id, title) => todos.updateTask(id, { title })}
+        onCommitOrder={todos.commitOrder}
+        onToggle={(id, done) => todos.updateTask(id, { done })}
+        onRemove={todos.removeTask}
+      />
+
       <section className="panel">
         <div className="panel-title">
           <h3>Study for these classes</h3>
@@ -108,9 +124,12 @@ export function Dashboard() {
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
+              selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
               onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
-              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
+              onAddTime={(durationMs, options) =>
+                void timer.addTime(activity.id, durationMs, options)
+              }
             />
           ))}
         </div>
@@ -128,9 +147,12 @@ export function Dashboard() {
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
+              selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
               onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
-              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
+              onAddTime={(durationMs, options) =>
+                void timer.addTime(activity.id, durationMs, options)
+              }
             />
           ))}
         </div>
@@ -148,9 +170,12 @@ export function Dashboard() {
               activity={activity}
               totalMs={timer.totalsByActivity[activity.id]}
               running={timer.activeSession?.activityId === activity.id}
+              selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
               onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
-              onAddTime={(durationMs) => void timer.addTime(activity.id, durationMs)}
+              onAddTime={(durationMs, options) =>
+                void timer.addTime(activity.id, durationMs, options)
+              }
             />
           ))}
         </div>
@@ -176,6 +201,18 @@ export function Dashboard() {
                 </button>
               </div>
             ) : null}
+            <WeekCalendar
+              weekStart={timer.weekStart}
+              sessions={timer.sessions}
+              now={timer.now}
+              selectedDay={timer.selectedDay ?? new Date()}
+              onSelectDay={(date) => {
+                const index = timer.days.findIndex(
+                  (day) => day.toDateString() === date.toDateString(),
+                );
+                if (index >= 0) timer.setSelectedDayIndex(index);
+              }}
+            />
             <DayView
               date={timer.selectedDay}
               sessions={timer.selectedDaySessions}
