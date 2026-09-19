@@ -1,6 +1,6 @@
 "use client";
 
-import { ACTIVITIES, ACTIVITY_MAP } from "@/lib/activities";
+import { resolveActivity, type Activity } from "@/lib/activities";
 import { formatCompact, formatDayLabel, formatWeekRange } from "@/lib/time";
 import type { ActivityId } from "@/lib/types";
 
@@ -21,6 +21,7 @@ type WeekReportProps = {
   sessionCount: number;
   busiestDay: DayTotal;
   totalsByActivity: Record<ActivityId, number>;
+  activities: Activity[];
   complete: boolean;
   wrappingUp: boolean;
 };
@@ -36,13 +37,15 @@ export function WeekReport({
   sessionCount,
   busiestDay,
   totalsByActivity,
+  activities,
   complete,
   wrappingUp,
 }: WeekReportProps) {
-  const ranked = ACTIVITIES.map((activity) => ({
-    activity,
-    ms: totalsByActivity[activity.id],
-  }))
+  const ranked = activities
+    .map((activity) => ({
+      activity,
+      ms: totalsByActivity[activity.id] ?? 0,
+    }))
     .filter((row) => row.ms > 0)
     .sort((a, b) => b.ms - a.ms);
   const top = ranked[0];
@@ -96,7 +99,7 @@ export function WeekReport({
           ? "Nothing tracked this week yet."
           : [
               top
-                ? `${ACTIVITY_MAP[top.activity.id].label} took the most time.`
+                ? `${resolveActivity(top.activity.id, activities).label} took the most time.`
                 : null,
               busiestDay.total
                 ? `${formatDayLabel(busiestDay.date)} was the busiest day.`

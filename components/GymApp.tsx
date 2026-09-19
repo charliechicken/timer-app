@@ -189,6 +189,7 @@ function valuesForExercise(
         stale={timer.stale && timer.activeSession?.activityId === "gym"}
         idleTitle="Start a workout"
         summary={`${formatCompact(timer.gymTotal)} gym this week`}
+        activities={timer.activities}
         onStop={() => void timer.stop()}
       />
 
@@ -256,19 +257,25 @@ function valuesForExercise(
       <section className="panel">
         <div className="panel-title">
           <h3>{split === "full-body" ? "Full body" : "Isolation"} exercises</h3>
-          <p>Log as many sets as you want. Use ⋮⋮ to drag sets or lifts. Overload when you hit the listed reps.</p>
+          <p>Log as many sets as you want. Use ⋮⋮ to drag sets or lifts. Remove keeps the lift in All lifts with past weights.</p>
         </div>
         <form
           className="goal-form"
           onSubmit={(event) => {
             event.preventDefault();
             if (!create.label.trim()) return;
-            void gym.createExercise({
-              label: create.label,
-              split,
-              bodyPart: create.bodyPart,
-              overloadReps: Number(create.overloadReps) || 10,
-            });
+            void gym
+              .createExercise({
+                label: create.label,
+                split,
+                bodyPart: create.bodyPart,
+                overloadReps: Number(create.overloadReps) || 10,
+              })
+              .then((result) => {
+                if (result?.restored) {
+                  setNotice(`Restored ${result.label} with previous weights.`);
+                }
+              });
             setCreate({ label: "", bodyPart: "back", overloadReps: "10" });
           }}
         >
@@ -405,25 +412,41 @@ function valuesForExercise(
 
       {catalogOpen ? (
         <Modal title="All lifts" onClose={() => setCatalogOpen(false)}>
-          <ol className="report-ranks">
-            {gym.exercises
-              .filter((exercise) => !exercise.archived)
-              .map((exercise) => {
-                const last = gym.logs
-                  .filter((log) => log.exerciseId === exercise.id)
-                  .sort((a, b) => b.loggedAt - a.loggedAt)[0];
-                const set = last ? bestSet(completedSets(last.sets)) : null;
-                return (
-                  <li key={exercise.id}>
-                    <span className="rank-label">{exercise.label}</span>
-                    <span className="rank-time">
-                      {set
-                        ? `${set.weight} x ${set.reps} · e1RM ${epley1RM(set.weight, set.reps).toFixed(1)}`
-                        : "No logs yet"}
-                    </span>
-                  </li>
-                );
-              })}
+          <p className="muted">
+            Removed lifts stay here with past weights. Add them back anytime.
+          </p>
+          <ol className="report-ranks catalog-list">
+            {gym.exercises.map((exercise) => {
+              const last = gym.logs
+                .filter((log) => log.exerciseId === exercise.id)
+                .sort((a, b) => b.loggedAt - a.loggedAt)[0];
+              const set = last ? bestSet(completedSets(last.sets)) : null;
+              return (
+                <li key={exercise.id}>
+                  <span className="rank-label">
+                    {exercise.label}
+                    {exercise.archived ? <em className="catalog-tag"> removed</em> : null}
+                  </span>
+                  <span className="rank-time">
+                    {set
+                      ? `${set.weight} x ${set.reps} · e1RM ${epley1RM(set.weight, set.reps).toFixed(1)}`
+                      : "No logs yet"}
+                  </span>
+                  {exercise.archived ? (
+                    <button
+                      type="button"
+                      className="ghost"
+                      onClick={() => {
+                        void gym.restoreExercise(exercise.id);
+                        setNotice(`Added ${exercise.label} back — previous weights still apply.`);
+                      }}
+                    >
+                      Add back
+                    </button>
+                  ) : null}
+                </li>
+              );
+            })}
           </ol>
         </Modal>
       ) : null}
@@ -472,10 +495,10 @@ function valuesForExercise(
       {confirmId ? (
         <div className="confirm-modal" role="dialog" aria-modal="true">
           <div className="panel">
-            <h3>Delete this exercise?</h3>
+            <h3>Remove from this split?</h3>
             <p className="muted">
-              {gym.exercises.find((item) => item.id === confirmId)?.label} will leave the split list.
-              Past logs stay on Progress.
+              {gym.exercises.find((item) => item.id === confirmId)?.label} leaves today’s list but
+              stays in the catalog with past weights. Open All lifts → Add back anytime.
             </p>
             <div className="split-pick">
               <button type="button" className="ghost" onClick={() => setConfirmId(null)}>
@@ -487,9 +510,10 @@ function valuesForExercise(
                 onClick={() => {
                   void gym.archiveExercise(confirmId);
                   setConfirmId(null);
+                  setNotice("Removed from the split — still in All lifts with past weights.");
                 }}
               >
-                Delete
+                Remove
               </button>
             </div>
           </div>
@@ -658,7 +682,7 @@ function ExerciseLog({
                 Add set
               </button>
               <button type="button" onClick={onAskDelete}>
-                Delete exercise
+                Remove from split
               </button>
             </div>
           ) : null}

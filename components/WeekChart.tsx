@@ -1,6 +1,6 @@
 "use client";
 
-import { ACTIVITIES } from "@/lib/activities";
+import type { Activity } from "@/lib/activities";
 import { formatCompact, formatDayLabel, isSameDay } from "@/lib/time";
 import type { ActivityId } from "@/lib/types";
 
@@ -12,12 +12,14 @@ type DayTotal = {
 
 type WeekChartProps = {
   days: DayTotal[];
+  activities: Activity[];
   selectedDayIndex: number;
   onSelectDay: (index: number) => void;
 };
 
 export function WeekChart({
   days,
+  activities,
   selectedDayIndex,
   onSelectDay,
 }: WeekChartProps) {
@@ -36,8 +38,8 @@ export function WeekChart({
             onClick={() => onSelectDay(index)}
           >
             <span className="bar" style={{ height: `${height}%` }}>
-              {ACTIVITIES.map((activity) => {
-                const value = day.byActivity[activity.id];
+              {activities.map((activity) => {
+                const value = day.byActivity[activity.id] ?? 0;
                 if (value <= 0) return null;
                 return (
                   <span

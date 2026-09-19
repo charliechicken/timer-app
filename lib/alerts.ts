@@ -1,4 +1,4 @@
-import { ACTIVITY_MAP } from "./activities";
+import { resolveActivity } from "./activities";
 import { getGmailToken, sendMailWithGmail } from "./gmail";
 import { sendWithFormSubmit } from "./inboxMail";
 import { timerAlertCopy } from "./timerAlert";
@@ -26,8 +26,9 @@ export function playTimerSound(): void {
 export async function showTimerNotification(
   activityId: ActivityId,
   minutes: number,
+  activityLabel?: string,
 ): Promise<void> {
-  const title = `${ACTIVITY_MAP[activityId].label} is done`;
+  const title = `${activityLabel ?? resolveActivity(activityId).label} is done`;
   const body = `${minutes} minute timer finished.`;
   if (!("Notification" in window)) return;
   if (Notification.permission === "default") {
@@ -96,6 +97,7 @@ export async function emailTimerComplete(payload: {
   activityId: ActivityId;
   minutes: number;
   test?: boolean;
+  activityLabel?: string;
 }): Promise<SendResult> {
   const copy = timerAlertCopy(payload);
   return sendAppEmail({

@@ -245,7 +245,23 @@ h3 {
 }
 
 .grid.life {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+}
+
+.activity-remove {
+  justify-self: start;
+  font-size: 0.82rem;
+}
+
+.catalog-list li {
+  align-items: center;
+  gap: 10px;
+}
+
+.catalog-tag {
+  font-style: normal;
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .app-header {

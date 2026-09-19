@@ -1,6 +1,10 @@
 "use client";
 
-import { ACTIVITIES, ACTIVITY_MAP } from "@/lib/activities";
+import {
+  emptyTotals,
+  resolveActivity,
+  type Activity,
+} from "@/lib/activities";
 import {
   addDays,
   formatCompact,
@@ -9,7 +13,7 @@ import {
   isSameDay,
   overlapMs,
 } from "@/lib/time";
-import type { ActivityId, Session } from "@/lib/types";
+import type { Session } from "@/lib/types";
 
 const HOUR_PX = 72;
 const MIN_EVENT_PX = 22;
@@ -20,6 +24,7 @@ type DayViewProps = {
   sessions: Session[];
   now: number;
   previousDayTotal?: number;
+  activities?: Activity[];
   onDelete: (sessionId: string) => void;
 };
 
@@ -72,6 +77,7 @@ export function DayView({
   sessions,
   now,
   previousDayTotal = 0,
+  activities = [],
   onDelete,
 }: DayViewProps) {
   const dayStart = date.getTime();
@@ -84,28 +90,24 @@ export function DayView({
     day: "numeric",
   });
 
-  const totals = Object.fromEntries(ACTIVITIES.map((activity) => [activity.id, 0])) as Record<
-    ActivityId,
-    number
-  >;
+  const totals = emptyTotals(activities);
   let total = 0;
   for (const session of sessions) {
     const duration = overlapMs(session.startAt, session.endAt ?? now, dayStart, dayEnd);
-    totals[session.activityId] += duration;
+    totals[session.activityId] = (totals[session.activityId] ?? 0) + duration;
     total += duration;
   }
 
-  const study = ACTIVITIES.filter((activity) => activity.group === "study").reduce(
-    (sum, activity) => sum + totals[activity.id],
-    0,
-  );
-  const clubs = ACTIVITIES.filter((activity) => activity.group === "club").reduce(
-    (sum, activity) => sum + totals[activity.id],
-    0,
-  );
-  const gym = totals.gym;
-  const screens = totals.youtube + totals.instagram;
-  const ranked = ACTIVITIES.map((activity) => ({ activity, ms: totals[activity.id] }))
+  const study = activities
+    .filter((activity) => activity.group === "study")
+    .reduce((sum, activity) => sum + (totals[activity.id] ?? 0), 0);
+  const clubs = activities
+    .filter((activity) => activity.group === "club")
+    .reduce((sum, activity) => sum + (totals[activity.id] ?? 0), 0);
+  const gym = totals.gym ?? 0;
+  const screens = (totals.youtube ?? 0) + (totals.instagram ?? 0);
+  const ranked = activities
+    .map((activity) => ({ activity, ms: totals[activity.id] ?? 0 }))
     .filter((row) => row.ms > 0)
     .sort((a, b) => b.ms - a.ms);
   const top = ranked[0];
@@ -130,7 +132,7 @@ export function DayView({
           ? `The day ran from ${formatTime(first.start)} to ${formatTime(last.end)}.`
           : null,
         longest
-          ? `Longest stretch: ${ACTIVITY_MAP[longest.session.activityId].label} for ${formatCompact(longest.end - longest.start)}.`
+          ? `Longest stretch: ${resolveActivity(longest.session.activityId, activities).label} for ${formatCompact(longest.end - longest.start)}.`
           : null,
         screens ? `YouTube and Instagram were ${formatCompact(screens)}.` : null,
         previousDayTotal
@@ -205,9 +207,7 @@ export function DayView({
 
       <div className="gcal-wrap">
         <p className="eyebrow">Day calendar</p>
-        {raw.length === 0 ? (
-          <p className="empty">No blocks on this day yet.</p>
-        ) : null}
+        {raw.length === 0 ? <p className="empty">No blocks on this day yet.</p> : null}
         <div className="gcal" style={{ height: hours.length * HOUR_PX }}>
           <div className="gcal-hours">
             {hours.map((hour) => (
@@ -221,7 +221,7 @@ export function DayView({
               <div key={hour} className="gcal-line" style={{ height: HOUR_PX }} />
             ))}
             {laidOut.map((block, index) => {
-              const activity = ACTIVITY_MAP[block.session.activityId];
+              const activity = resolveActivity(block.session.activityId, activities);
               const inset = 8 + block.stack * 10;
               return (
                 <div

@@ -1,6 +1,6 @@
 "use client";
 
-import { ACTIVITY_MAP } from "@/lib/activities";
+import { resolveActivity, type Activity } from "@/lib/activities";
 import { addDays, formatHourLabel, formatTime, isSameDay } from "@/lib/time";
 import type { Session } from "@/lib/types";
 
@@ -11,6 +11,7 @@ type WeekCalendarProps = {
   sessions: Session[];
   now: number;
   selectedDay: Date;
+  activities?: Activity[];
   onSelectDay: (date: Date) => void;
 };
 
@@ -30,6 +31,7 @@ export function WeekCalendar({
   sessions,
   now,
   selectedDay,
+  activities,
   onSelectDay,
 }: WeekCalendarProps) {
   const days = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
@@ -67,7 +69,7 @@ export function WeekCalendar({
                   <i key={hour} className="week-cal-line" style={{ height: HOUR_PX }} />
                 ))}
                 {blocks.map((block) => {
-                  const activity = ACTIVITY_MAP[block.session.activityId];
+                  const activity = resolveActivity(block.session.activityId, activities);
                   const top =
                     ((block.start - dayStart) / 3_600_000 - gridStartHour) * HOUR_PX;
                   const height = Math.max(

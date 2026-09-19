@@ -1,4 +1,4 @@
-import { ACTIVITY_MAP } from "./activities";
+import { resolveActivity } from "./activities";
 import { formatAlertStamp } from "./time";
 import type { ActivityId } from "./types";
 
@@ -20,10 +20,12 @@ export function timerAlertCopy(payload: {
   minutes: number;
   test?: boolean;
   at?: number;
+  activityLabel?: string;
 }): TimerAlertCopy {
   const id = newAlertId();
   const stamp = formatAlertStamp(payload.at);
-  const activity = ACTIVITY_MAP[payload.activityId]?.label ?? payload.activityId;
+  const activity =
+    payload.activityLabel ?? resolveActivity(payload.activityId).label;
   const subject = payload.test
     ? `Week timer test | ${stamp} | ${id}`
     : `${activity} timer finished | ${stamp} | ${id}`;

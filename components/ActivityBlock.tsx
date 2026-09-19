@@ -15,6 +15,7 @@ type ActivityBlockProps = {
     durationMs: number,
     options?: { startAt?: number; spread?: boolean },
   ) => void;
+  onRemove?: () => void;
 };
 
 function pad(value: number): string {
@@ -42,6 +43,7 @@ export function ActivityBlock({
   onToggle,
   onStartTimed,
   onAddTime,
+  onRemove,
 }: ActivityBlockProps) {
   const [countdownMinutes, setCountdownMinutes] = useState("25");
   const [addMinutes, setAddMinutes] = useState("25");
@@ -131,6 +133,11 @@ export function ActivityBlock({
         </label>
         <button type="submit">Add {addMinutes || "?"}m</button>
       </form>
+      {onRemove ? (
+        <button type="button" className="ghost activity-remove" onClick={onRemove}>
+          Remove from list
+        </button>
+      ) : null}
     </div>
   );
 }

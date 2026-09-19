@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { activitiesInGroup } from "@/lib/activities";
 import { requestAlertPermission } from "@/lib/alerts";
 import { formatWeekRange } from "@/lib/time";
+import type { ActivityId } from "@/lib/types";
 import { ActivityBlock } from "./ActivityBlock";
 import { AppShell } from "./AppShell";
 import { DayView } from "./DayView";
@@ -20,16 +22,17 @@ export function Dashboard() {
   const auth = useAuth();
   const timer = useWeekTimer(auth.user?.uid ?? null);
   const todos = useWeekTasks(auth.user?.uid ?? null, timer.weekStart);
-  const study = activitiesInGroup("study");
-  const clubs = activitiesInGroup("club");
-  const life = activitiesInGroup("life");
+  const study = activitiesInGroup("study", timer.activities);
+  const clubs = activitiesInGroup("club", timer.activities);
+  const life = activitiesInGroup("life", timer.activities);
+  const [newTimer, setNewTimer] = useState("");
   const showReportFirst = timer.isCompleteWeek || timer.isWeekEnding;
   const showLastWeekPrompt =
     timer.weekOffset === 0 &&
     new Date().getDay() === 1 &&
     timer.previousWeekTotal > 0;
 
-  function startTimed(activityId: (typeof study)[number]["id"], durationMs: number) {
+  function startTimed(activityId: ActivityId, durationMs: number) {
     void requestAlertPermission();
     void timer.start(activityId, durationMs);
   }
@@ -46,6 +49,7 @@ export function Dashboard() {
       sessionCount={timer.sessionCount}
       busiestDay={timer.busiestDay}
       totalsByActivity={timer.totalsByActivity}
+      activities={timer.activities}
       complete={timer.isCompleteWeek}
       wrappingUp={timer.isWeekEnding}
     />
@@ -96,6 +100,7 @@ export function Dashboard() {
           weekTotal={timer.weekTotal}
           classTotal={timer.studyTotal}
           stale={timer.stale}
+          activities={timer.activities}
           onStop={() => void timer.stop()}
         />
       ) : null}
@@ -122,7 +127,7 @@ export function Dashboard() {
             <ActivityBlock
               key={activity.id}
               activity={activity}
-              totalMs={timer.totalsByActivity[activity.id]}
+              totalMs={timer.totalsByActivity[activity.id] ?? 0}
               running={timer.activeSession?.activityId === activity.id}
               selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
@@ -145,7 +150,7 @@ export function Dashboard() {
             <ActivityBlock
               key={activity.id}
               activity={activity}
-              totalMs={timer.totalsByActivity[activity.id]}
+              totalMs={timer.totalsByActivity[activity.id] ?? 0}
               running={timer.activeSession?.activityId === activity.id}
               selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
@@ -161,20 +166,45 @@ export function Dashboard() {
       <section className="panel">
         <div className="panel-title">
           <h3>Everything else</h3>
-          <p>Chess, YouTube, Instagram, eating</p>
+          <p>Chess, YouTube, Instagram, eating — plus timers you create, like Running</p>
         </div>
+        <form
+          className="goal-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!newTimer.trim()) return;
+            void timer.createActivity({ label: newTimer }).then(() => setNewTimer(""));
+          }}
+        >
+          <label>
+            <span>New timer</span>
+            <input
+              value={newTimer}
+              placeholder="Running"
+              onChange={(event) => setNewTimer(event.target.value)}
+            />
+          </label>
+          <button type="submit" className="stop">
+            Add timer
+          </button>
+        </form>
         <div className="grid life">
           {life.map((activity) => (
             <ActivityBlock
               key={activity.id}
               activity={activity}
-              totalMs={timer.totalsByActivity[activity.id]}
+              totalMs={timer.totalsByActivity[activity.id] ?? 0}
               running={timer.activeSession?.activityId === activity.id}
               selectedDay={timer.selectedDay ?? new Date()}
               onToggle={() => void timer.start(activity.id)}
               onStartTimed={(durationMs) => void startTimed(activity.id, durationMs)}
               onAddTime={(durationMs, options) =>
                 void timer.addTime(activity.id, durationMs, options)
+              }
+              onRemove={
+                activity.custom
+                  ? () => void timer.archiveActivity(activity.id)
+                  : undefined
               }
             />
           ))}
@@ -188,6 +218,7 @@ export function Dashboard() {
         </div>
         <WeekChart
           days={timer.totalsByDay}
+          activities={timer.activities}
           selectedDayIndex={timer.selectedDayIndex}
           onSelectDay={timer.setSelectedDayIndex}
         />
@@ -206,6 +237,7 @@ export function Dashboard() {
               sessions={timer.sessions}
               now={timer.now}
               selectedDay={timer.selectedDay ?? new Date()}
+              activities={timer.activities}
               onSelectDay={(date) => {
                 const index = timer.days.findIndex(
                   (day) => day.toDateString() === date.toDateString(),
@@ -217,6 +249,7 @@ export function Dashboard() {
               date={timer.selectedDay}
               sessions={timer.selectedDaySessions}
               now={timer.now}
+              activities={timer.activities}
               previousDayTotal={
                 timer.selectedDayIndex > 0
                   ? timer.totalsByDay[timer.selectedDayIndex - 1]?.total ?? 0
@@ -228,6 +261,7 @@ export function Dashboard() {
               date={timer.selectedDay}
               sessions={timer.selectedDaySessions}
               now={timer.now}
+              activities={timer.activities}
               onDelete={(sessionId) => void timer.remove(sessionId)}
             />
           </>

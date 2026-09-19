@@ -1,7 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ACTIVITIES } from "@/lib/activities";
+import {
+  colorForActivityId,
+  emptyTotals,
+  mergeActivityCatalog,
+  resolveActivity,
+  shortLabelFrom,
+  slugActivityId,
+  visibleActivities,
+  type Activity,
+  type ActivityGroup,
+} from "@/lib/activities";
+import { saveActivity, subscribeActivities } from "@/lib/activityStorage";
 import { isFirebaseConfigured } from "@/lib/firebase";
 import { getOwnerId } from "@/lib/owner";
 import {
@@ -27,6 +38,7 @@ export function useWeekTimer(
 ) {
   const [ownerId, setOwnerId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [storedActivities, setStoredActivities] = useState<Activity[]>([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [emailNotice, setEmailNotice] = useState<string | null>(null);
@@ -48,6 +60,7 @@ export function useWeekTimer(
       setOwnerId(firebaseUid);
       if (!firebaseUid) {
         setSessions([]);
+        setStoredActivities([]);
         setReady(false);
       }
       return;
@@ -73,8 +86,22 @@ export function useWeekTimer(
         setReady(true);
       },
     );
-    return unsubscribe;
+    const unsubActivities = subscribeActivities(
+      ownerId,
+      setStoredActivities,
+      (message) => setSyncError(message),
+    );
+    return () => {
+      unsubscribe();
+      unsubActivities();
+    };
   }, [ownerId, usingFirebase]);
+
+  const activities = useMemo(
+    () => mergeActivityCatalog(storedActivities),
+    [storedActivities],
+  );
+  const visible = useMemo(() => visibleActivities(activities), [activities]);
 
   const activeSession = useMemo(
     () =>
@@ -120,33 +147,28 @@ export function useWeekTimer(
   );
 
   const totalsByActivity = useMemo(() => {
-    const totals = Object.fromEntries(ACTIVITIES.map((activity) => [activity.id, 0])) as Record<
-      ActivityId,
-      number
-    >;
+    const totals = emptyTotals(activities);
     for (const session of sessions) {
       const duration = durationFor(session, weekStart.getTime(), weekEnd.getTime());
-      totals[session.activityId] += duration;
+      totals[session.activityId] = (totals[session.activityId] ?? 0) + duration;
     }
     return totals;
-  }, [durationFor, sessions, weekEnd, weekStart]);
+  }, [activities, durationFor, sessions, weekEnd, weekStart]);
 
   const totalsByDay = useMemo(() => {
     return days.map((day) => {
       const dayStart = day.getTime();
       const dayEnd = addDays(day, 1).getTime();
-      const byActivity = Object.fromEntries(
-        ACTIVITIES.map((activity) => [activity.id, 0]),
-      ) as Record<ActivityId, number>;
+      const byActivity = emptyTotals(activities);
       let total = 0;
       for (const session of sessions) {
         const duration = durationFor(session, dayStart, dayEnd);
-        byActivity[session.activityId] += duration;
+        byActivity[session.activityId] = (byActivity[session.activityId] ?? 0) + duration;
         total += duration;
       }
       return { date: day, total, byActivity };
     });
-  }, [days, durationFor, sessions]);
+  }, [activities, days, durationFor, sessions]);
 
   const weekTotal = useMemo(
     () => Object.values(totalsByActivity).reduce((sum, value) => sum + value, 0),
@@ -154,12 +176,11 @@ export function useWeekTimer(
   );
 
   const groupTotal = useCallback(
-    (group: (typeof ACTIVITIES)[number]["group"]) =>
-      ACTIVITIES.filter((activity) => activity.group === group).reduce(
-        (sum, activity) => sum + totalsByActivity[activity.id],
-        0,
-      ),
-    [totalsByActivity],
+    (group: ActivityGroup) =>
+      activities
+        .filter((activity) => activity.group === group)
+        .reduce((sum, activity) => sum + (totalsByActivity[activity.id] ?? 0), 0),
+    [activities, totalsByActivity],
   );
 
   const studyTotal = groupTotal("study");
@@ -353,17 +374,19 @@ export function useWeekTimer(
     completing.current = activeSession.id;
     const session = activeSession;
     const minutes = Math.max(1, Math.round((targetEndAt - session.startAt) / 60_000));
+    const label = resolveActivity(session.activityId, activities).label;
     pending.current = false;
     void (async () => {
       await stop();
       try {
         playTimerSound();
-        await showTimerNotification(session.activityId, minutes);
+        await showTimerNotification(session.activityId, minutes, label);
         if (notifyEmail) {
           const result = await emailTimerComplete({
             email: notifyEmail,
             activityId: session.activityId,
             minutes,
+            activityLabel: label,
           });
           if (result.pendingConfirm) {
             setEmailNotice(
@@ -379,7 +402,49 @@ export function useWeekTimer(
         // Sound/notification/email should not block stopping the timer.
       }
     })();
-  }, [activeSession, enableAlerts, now, notifyEmail, stop]);
+  }, [activeSession, activities, enableAlerts, now, notifyEmail, stop]);
+
+  const createActivity = useCallback(
+    async (input: { label: string; group?: ActivityGroup; color?: string }) => {
+      if (!ownerId) return null;
+      const label = input.label.trim();
+      if (!label) return null;
+      const existing = activities.find(
+        (activity) =>
+          activity.custom &&
+          activity.label.toLowerCase() === label.toLowerCase() &&
+          activity.group === (input.group ?? "life"),
+      );
+      if (existing?.archived) {
+        const restored = { ...existing, archived: false };
+        await saveActivity(ownerId, restored);
+        return restored;
+      }
+      if (existing && !existing.archived) return existing;
+      const activity: Activity = {
+        id: slugActivityId(label),
+        label,
+        shortLabel: shortLabelFrom(label),
+        group: input.group ?? "life",
+        color: input.color ?? colorForActivityId(label),
+        custom: true,
+        archived: false,
+      };
+      await saveActivity(ownerId, activity);
+      return activity;
+    },
+    [activities, ownerId],
+  );
+
+  const archiveActivity = useCallback(
+    async (activityId: ActivityId) => {
+      if (!ownerId) return;
+      const current = activities.find((activity) => activity.id === activityId);
+      if (!current?.custom) return;
+      await saveActivity(ownerId, { ...current, archived: true });
+    },
+    [activities, ownerId],
+  );
 
   return {
     ownerId: ownerId ?? "…",
@@ -398,6 +463,8 @@ export function useWeekTimer(
     selectedDay,
     selectedDaySessions,
     sessions,
+    activities,
+    visibleActivities: visible,
     totalsByActivity,
     totalsByDay,
     weekTotal,
@@ -419,5 +486,7 @@ export function useWeekTimer(
     undoRemove,
     undoCount,
     durationFor,
+    createActivity,
+    archiveActivity,
   };
 }

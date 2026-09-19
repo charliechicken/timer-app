@@ -1,6 +1,6 @@
 "use client";
 
-import { ACTIVITY_MAP } from "@/lib/activities";
+import { resolveActivity, type Activity } from "@/lib/activities";
 import { formatClock, formatCompact } from "@/lib/time";
 import type { Session } from "@/lib/types";
 
@@ -12,6 +12,7 @@ type HeroTimerProps = {
   stale: boolean;
   idleTitle?: string;
   summary?: string;
+  activities?: Activity[];
   onStop: () => void;
 };
 
@@ -23,9 +24,12 @@ export function HeroTimer({
   stale,
   idleTitle = "Tap something to start",
   summary,
+  activities,
   onStop,
 }: HeroTimerProps) {
-  const activity = activeSession ? ACTIVITY_MAP[activeSession.activityId] : null;
+  const activity = activeSession
+    ? resolveActivity(activeSession.activityId, activities)
+    : null;
   const elapsed = activeSession ? now - activeSession.startAt : 0;
   const remaining =
     activeSession?.targetEndAt != null

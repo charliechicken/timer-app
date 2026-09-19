@@ -1,6 +1,6 @@
 "use client";
 
-import { ACTIVITY_MAP } from "@/lib/activities";
+import { resolveActivity, type Activity } from "@/lib/activities";
 import { addDays, formatClock, formatCompact } from "@/lib/time";
 import type { Session } from "@/lib/types";
 
@@ -8,6 +8,7 @@ type SessionListProps = {
   date: Date;
   sessions: Session[];
   now: number;
+  activities?: Activity[];
   onDelete: (sessionId: string) => void;
 };
 
@@ -15,6 +16,7 @@ export function SessionList({
   date,
   sessions,
   now,
+  activities,
   onDelete,
 }: SessionListProps) {
   const dayStart = date.getTime();
@@ -29,14 +31,18 @@ export function SessionList({
     <div className="session-list">
       <div className="session-heading">
         <h3>{heading}</h3>
-        <p>{sessions.length ? `${sessions.length} session${sessions.length === 1 ? "" : "s"}` : "No sessions"}</p>
+        <p>
+          {sessions.length
+            ? `${sessions.length} session${sessions.length === 1 ? "" : "s"}`
+            : "No sessions"}
+        </p>
       </div>
       {sessions.length === 0 ? (
         <p className="empty">Nothing tracked this day yet.</p>
       ) : (
         <ul>
           {sessions.map((session) => {
-            const activity = ACTIVITY_MAP[session.activityId];
+            const activity = resolveActivity(session.activityId, activities);
             const duration = Math.max(
               0,
               Math.min(session.endAt ?? now, dayEnd) - Math.max(session.startAt, dayStart),
@@ -47,10 +53,7 @@ export function SessionList({
             });
             return (
               <li key={session.id}>
-                <span
-                  className="dot"
-                  style={{ background: activity.color }}
-                />
+                <span className="dot" style={{ background: activity.color }} />
                 <div>
                   <p className="session-label">
                     {activity.label}

@@ -137,12 +137,33 @@ export function useGym(firebaseUid: string | null) {
       bodyPart: BodyPart;
       overloadReps: number;
     }) => {
-      if (!ownerId) return;
+      if (!ownerId) return { restored: false as const };
+      const label = input.label.trim();
+      const existing = exercises.find(
+        (item) =>
+          item.split === input.split &&
+          item.label.toLowerCase() === label.toLowerCase(),
+      );
+      if (existing?.archived) {
+        const inSplit = visibleExercises(exercises, input.split);
+        const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
+        await saveGymExercise(ownerId, {
+          ...existing,
+          bodyPart: input.bodyPart,
+          overloadReps: input.overloadReps,
+          sortOrder: maxOrder + 10,
+          archived: false,
+        });
+        return { restored: true as const, label: existing.label };
+      }
+      if (existing && !existing.archived) {
+        return { restored: false as const, alreadyActive: true as const };
+      }
       const inSplit = visibleExercises(exercises, input.split);
       const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
       await saveGymExercise(ownerId, {
-        id: slugExerciseId(input.label),
-        label: input.label.trim(),
+        id: slugExerciseId(label),
+        label,
         split: input.split,
         bodyPart: input.bodyPart,
         overloadReps: input.overloadReps,
@@ -150,6 +171,7 @@ export function useGym(firebaseUid: string | null) {
         custom: true,
         archived: false,
       });
+      return { restored: false as const };
     },
     [exercises, ownerId],
   );
@@ -162,6 +184,24 @@ export function useGym(firebaseUid: string | null) {
         EXERCISES.find((item) => item.id === exerciseId);
       if (!current) return;
       await saveGymExercise(ownerId, { ...current, archived: true });
+    },
+    [exercises, ownerId],
+  );
+
+  const restoreExercise = useCallback(
+    async (exerciseId: string) => {
+      if (!ownerId) return;
+      const current =
+        exercises.find((item) => item.id === exerciseId) ??
+        EXERCISES.find((item) => item.id === exerciseId);
+      if (!current) return;
+      const inSplit = visibleExercises(exercises, current.split);
+      const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
+      await saveGymExercise(ownerId, {
+        ...current,
+        sortOrder: maxOrder + 10,
+        archived: false,
+      });
     },
     [exercises, ownerId],
   );
@@ -220,6 +260,7 @@ export function useGym(firebaseUid: string | null) {
     upsertExercise,
     createExercise,
     archiveExercise,
+    restoreExercise,
     reorderExercises,
   };
 }
