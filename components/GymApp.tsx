@@ -12,8 +12,11 @@ import {
   bestSet,
   bodyPartLabel,
   completedSets,
+  defaultWeightIncrement,
   epley1RM,
   exercisesForSplit,
+  resolveWeightIncrement,
+  suggestedNextWeight,
   suggestedSplit,
   type BodyPart,
   type Exercise,
@@ -63,6 +66,7 @@ export function GymApp() {
     label: "",
     bodyPart: "back" as BodyPart,
     overloadReps: "10",
+    weightIncrement: "5",
   });
 
   const logsToday = useMemo(
@@ -270,13 +274,14 @@ function valuesForExercise(
                 split,
                 bodyPart: create.bodyPart,
                 overloadReps: Number(create.overloadReps) || 10,
+                weightIncrement: Number(create.weightIncrement) || undefined,
               })
               .then((result) => {
                 if (result?.restored) {
                   setNotice(`Restored ${result.label} with previous weights.`);
                 }
               });
-            setCreate({ label: "", bodyPart: "back", overloadReps: "10" });
+            setCreate({ label: "", bodyPart: "back", overloadReps: "10", weightIncrement: "5" });
           }}
         >
           <label>
@@ -291,9 +296,19 @@ function valuesForExercise(
             <span>Body part</span>
             <select
               value={create.bodyPart}
-              onChange={(event) =>
-                setCreate((current) => ({ ...current, bodyPart: event.target.value as BodyPart }))
-              }
+              onChange={(event) => {
+                const bodyPart = event.target.value as BodyPart;
+                setCreate((current) => ({
+                  ...current,
+                  bodyPart,
+                  weightIncrement: String(
+                    // keep typed value if user already edited; only seed when still default-ish
+                    current.weightIncrement === "5" || current.weightIncrement === "2.5" || current.weightIncrement === "15"
+                      ? defaultWeightIncrement(bodyPart)
+                      : Number(current.weightIncrement) || defaultWeightIncrement(bodyPart),
+                  ),
+                }));
+              }}
             >
               {BODY_PARTS.map((part) => (
                 <option key={part} value={part}>
@@ -310,6 +325,18 @@ function valuesForExercise(
               value={create.overloadReps}
               onChange={(event) =>
                 setCreate((current) => ({ ...current, overloadReps: event.target.value }))
+              }
+            />
+          </label>
+          <label>
+            <span>+lbs when ready</span>
+            <input
+              type="number"
+              min="0.5"
+              step="0.5"
+              value={create.weightIncrement}
+              onChange={(event) =>
+                setCreate((current) => ({ ...current, weightIncrement: event.target.value }))
               }
             />
           </label>
@@ -367,6 +394,9 @@ function valuesForExercise(
               onAskDelete={() => {
                 setConfirmId(exercise.id);
                 setMenuId(null);
+              }}
+              onIncrementChange={(weightIncrement) => {
+                void gym.upsertExercise({ ...exercise, weightIncrement });
               }}
               onDragStart={() => setDragId(exercise.id)}
               onDragOverCard={() => {
@@ -563,6 +593,7 @@ function ExerciseLog({
   onReorderList,
   onMove,
   onAskDelete,
+  onIncrementChange,
   onDragStart,
   onDragOverCard,
   onDragEnd,
@@ -585,6 +616,7 @@ function ExerciseLog({
   onReorderList: () => void;
   onMove: (direction: -1 | 1) => void;
   onAskDelete: () => void;
+  onIncrementChange: (weightIncrement: number) => void;
   onDragStart: () => void;
   onDragOverCard: () => void;
   onDragEnd: () => void;
@@ -595,6 +627,8 @@ function ExerciseLog({
   const [busy, setBusy] = useState(false);
   const dragSet = useRef<number | null>(null);
   const [dropSet, setDropSet] = useState<number | null>(null);
+  const increment = resolveWeightIncrement(exercise);
+  const hint = suggestedNextWeight(lastSets, exercise.overloadReps, increment);
 
   function moveSet(from: number, to: number) {
     if (from === to || from < 0 || to < 0) return;
@@ -645,7 +679,8 @@ function ExerciseLog({
         <div>
           <h3>{exercise.label}</h3>
           <p>
-            {bodyPartLabel(exercise.bodyPart)} · overload at {exercise.overloadReps} reps
+            {bodyPartLabel(exercise.bodyPart)} · overload at {exercise.overloadReps} reps · +
+            {increment} lb steps
             {lastSets?.length
               ? ` · last ${lastSets
                   .filter((set) => set.weight > 0 || set.reps > 0)
@@ -653,6 +688,13 @@ function ExerciseLog({
                   .join(", ")}`
               : ""}
           </p>
+          {hint ? (
+            <p className={`overload-hint ${hint.ready ? "ready" : ""}`}>
+              {hint.ready
+                ? `Hit ${exercise.overloadReps}+ reps last time — try ${hint.nextWeight} lb (+${increment}).`
+                : `Keep ${hint.lastWeight} lb until ${exercise.overloadReps} reps (last best ${hint.lastReps}).`}
+            </p>
+          ) : null}
         </div>
         <div className="menu-wrap">
           <button type="button" className="ghost icon-btn" onClick={onMenu} aria-label="Exercise menu">
@@ -681,6 +723,19 @@ function ExerciseLog({
               >
                 Add set
               </button>
+              <label className="menu-increment">
+                <span>+lbs step</span>
+                <input
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  defaultValue={increment}
+                  onBlur={(event) => {
+                    const next = Number(event.target.value);
+                    if (Number.isFinite(next) && next > 0) onIncrementChange(next);
+                  }}
+                />
+              </label>
               <button type="button" onClick={onAskDelete}>
                 Remove from split
               </button>
@@ -818,8 +873,8 @@ function LiftOverview({
   return (
     <>
       <p className="muted">
-        {bodyPartLabel(exercise.bodyPart)} · overload {exercise.overloadReps} reps · Epley e1RM from
-        the best set each session
+        {bodyPartLabel(exercise.bodyPart)} · overload {exercise.overloadReps} reps · +
+        {resolveWeightIncrement(exercise)} lb when ready · Epley e1RM from the best set each session
       </p>
       {recent.length === 0 ? (
         <p className="empty">No logs yet.</p>

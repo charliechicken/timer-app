@@ -3,6 +3,8 @@
 import { resolveActivity, type Activity } from "@/lib/activities";
 import { formatCompact, formatDayLabel, formatWeekRange } from "@/lib/time";
 import type { ActivityId } from "@/lib/types";
+import type { WeekGoalStatus } from "@/lib/weekGoals";
+import { weekGoalInsight } from "@/lib/weekGoals";
 
 type DayTotal = {
   date: Date;
@@ -22,6 +24,7 @@ type WeekReportProps = {
   busiestDay: DayTotal;
   totalsByActivity: Record<ActivityId, number>;
   activities: Activity[];
+  goalStatuses?: WeekGoalStatus[];
   complete: boolean;
   wrappingUp: boolean;
 };
@@ -38,6 +41,7 @@ export function WeekReport({
   busiestDay,
   totalsByActivity,
   activities,
+  goalStatuses = [],
   complete,
   wrappingUp,
 }: WeekReportProps) {
@@ -111,6 +115,16 @@ export function WeekReport({
               .filter(Boolean)
               .join(" ")}
       </p>
+
+      {goalStatuses.length ? (
+        <ul className="week-goal-list compact">
+          {goalStatuses.map((status) => (
+            <li key={status.goal.id} className={`week-goal ${status.tone}`}>
+              <span>{weekGoalInsight(status)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {ranked.length ? (
         <ol className="report-ranks">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { activitiesInGroup } from "@/lib/activities";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { activitiesInGroup, isActivityId } from "@/lib/activities";
 import { requestAlertPermission } from "@/lib/alerts";
 import { formatWeekRange } from "@/lib/time";
 import type { ActivityId } from "@/lib/types";
@@ -11,26 +12,56 @@ import { DayView } from "./DayView";
 import { HeroTimer } from "./HeroTimer";
 import { SessionList } from "./SessionList";
 import { WeekCalendar } from "./WeekCalendar";
+import { WeekGoalsPanel } from "./WeekGoalsPanel";
 import { WeekTodo } from "./WeekTodo";
 import { WeekChart } from "./WeekChart";
 import { WeekReport } from "./WeekReport";
 import { useAuth } from "@/hooks/useAuth";
+import { useWeekGoals } from "@/hooks/useWeekGoals";
 import { useWeekTasks } from "@/hooks/useWeekTasks";
 import { useWeekTimer } from "@/hooks/useWeekTimer";
 
 export function Dashboard() {
   const auth = useAuth();
+  const searchParams = useSearchParams();
   const timer = useWeekTimer(auth.user?.uid ?? null);
   const todos = useWeekTasks(auth.user?.uid ?? null, timer.weekStart);
+  const goals = useWeekGoals(
+    auth.user?.uid ?? null,
+    timer.totalsByActivity,
+    timer.activities,
+    timer.weekTotal,
+  );
   const study = activitiesInGroup("study", timer.activities);
   const clubs = activitiesInGroup("club", timer.activities);
   const life = activitiesInGroup("life", timer.activities);
   const [newTimer, setNewTimer] = useState("");
+  const autoStarted = useRef<string | null>(null);
   const showReportFirst = timer.isCompleteWeek || timer.isWeekEnding;
   const showLastWeekPrompt =
     timer.weekOffset === 0 &&
     new Date().getDay() === 1 &&
     timer.previousWeekTotal > 0;
+
+  useEffect(() => {
+    if (!timer.ready || timer.weekOffset !== 0) return;
+    const startId = searchParams.get("start");
+    if (!startId || !isActivityId(startId)) return;
+    if (autoStarted.current === startId) return;
+    if (timer.activeSession?.activityId === startId) {
+      autoStarted.current = startId;
+      return;
+    }
+    autoStarted.current = startId;
+    void requestAlertPermission();
+    void timer.start(startId);
+  }, [
+    searchParams,
+    timer.ready,
+    timer.weekOffset,
+    timer.activeSession?.activityId,
+    timer.start,
+  ]);
 
   function startTimed(activityId: ActivityId, durationMs: number) {
     void requestAlertPermission();
@@ -50,6 +81,7 @@ export function Dashboard() {
       busiestDay={timer.busiestDay}
       totalsByActivity={timer.totalsByActivity}
       activities={timer.activities}
+      goalStatuses={goals.statuses}
       complete={timer.isCompleteWeek}
       wrappingUp={timer.isWeekEnding}
     />
@@ -104,6 +136,14 @@ export function Dashboard() {
           onStop={() => void timer.stop()}
         />
       ) : null}
+
+      <WeekGoalsPanel
+        activities={timer.activities}
+        statuses={goals.statuses}
+        error={goals.error}
+        onSave={goals.upsertGoal}
+        onRemove={goals.removeGoal}
+      />
 
       <WeekTodo
         weekStart={timer.weekStart}

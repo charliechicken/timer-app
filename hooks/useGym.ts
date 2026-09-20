@@ -8,6 +8,7 @@ import {
   bestSet,
   catalogMap,
   completedSets,
+  defaultWeightIncrement,
   epley1RM,
   mergeExerciseCatalog,
   slugExerciseId,
@@ -136,9 +137,14 @@ export function useGym(firebaseUid: string | null) {
       split: SplitType;
       bodyPart: BodyPart;
       overloadReps: number;
+      weightIncrement?: number;
     }) => {
       if (!ownerId) return { restored: false as const };
       const label = input.label.trim();
+      const weightIncrement =
+        input.weightIncrement && input.weightIncrement > 0
+          ? input.weightIncrement
+          : defaultWeightIncrement(input.bodyPart);
       const existing = exercises.find(
         (item) =>
           item.split === input.split &&
@@ -151,6 +157,7 @@ export function useGym(firebaseUid: string | null) {
           ...existing,
           bodyPart: input.bodyPart,
           overloadReps: input.overloadReps,
+          weightIncrement,
           sortOrder: maxOrder + 10,
           archived: false,
         });
@@ -167,6 +174,7 @@ export function useGym(firebaseUid: string | null) {
         split: input.split,
         bodyPart: input.bodyPart,
         overloadReps: input.overloadReps,
+        weightIncrement,
         sortOrder: maxOrder + 10,
         custom: true,
         archived: false,

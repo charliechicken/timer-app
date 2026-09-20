@@ -1443,3 +1443,145 @@ h3 {
     grid-template-columns: 1fr;
   }
 }
+
+.week-goal-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.week-goal-list.compact {
+  margin-top: 12px;
+}
+
+.week-goal {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.week-goal.good {
+  border-color: color-mix(in srgb, #2a9d4f 45%, var(--line));
+  background: color-mix(in srgb, #2a9d4f 10%, var(--bg-card));
+}
+
+.week-goal.bad {
+  border-color: color-mix(in srgb, #c0453a 45%, var(--line));
+  background: color-mix(in srgb, #c0453a 10%, var(--bg-card));
+}
+
+.week-goal.progress {
+  border-color: color-mix(in srgb, var(--btn-strong) 30%, var(--line));
+}
+
+.week-goal-head,
+.week-goal-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.week-goal-head span,
+.week-goal-meta span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.week-goal-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  overflow: hidden;
+}
+
+.week-goal-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--btn-strong);
+}
+
+.week-goal.good .week-goal-bar span {
+  background: #2a9d4f;
+}
+
+.week-goal.bad .week-goal-bar span {
+  background: #c0453a;
+}
+
+.overload-hint {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.overload-hint.ready {
+  color: #2a7f62;
+  font-weight: 600;
+}
+
+.menu-increment {
+  display: grid;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.menu-increment input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-soft);
+}
+
+.quick-start-panel {
+  margin-top: 8px;
+}
+
+.quick-start-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quick-start {
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--btn-strong) 22%, var(--line));
+  background: var(--bg-card);
+  text-decoration: none;
+  color: inherit;
+}
+
+.quick-start span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.install-steps {
+  margin: 14px 0 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.start-hint {
+  margin: 12px 0;
+}
+
+@media (max-width: 720px) {
+  .quick-start-grid {
+    grid-template-columns: 1fr;
+  }
+}

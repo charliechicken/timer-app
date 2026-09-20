@@ -108,6 +108,9 @@ function parseExercise(raw: unknown): Exercise | null {
     sortOrder: typeof value.sortOrder === "number" ? value.sortOrder : undefined,
     custom: value.custom === true,
     archived: value.archived === true,
+    ...(typeof value.weightIncrement === "number" && value.weightIncrement > 0
+      ? { weightIncrement: value.weightIncrement }
+      : {}),
   };
 }
 
