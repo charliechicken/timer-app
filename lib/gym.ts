@@ -19,6 +19,8 @@ export type Exercise = {
   split: SplitType;
   bodyPart: BodyPart;
   overloadReps: number;
+  /** Suggested next jump in lbs when overload reps are hit. */
+  weightIncrement?: number;
   sortOrder?: number;
   custom?: boolean;
   archived?: boolean;
@@ -71,6 +73,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "calves",
     overloadReps: 12,
+    weightIncrement: 15,
   },
   {
     id: "machine-leg-press",
@@ -78,6 +81,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "quads",
     overloadReps: 10,
+    weightIncrement: 15,
   },
   {
     id: "barbell-bench-press",
@@ -85,6 +89,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "chest",
     overloadReps: 5,
+    weightIncrement: 5,
   },
   {
     id: "lateral-raise-machine",
@@ -92,6 +97,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "shoulder",
     overloadReps: 15,
+    weightIncrement: 5,
   },
   {
     id: "weighted-pullup",
@@ -99,6 +105,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "back",
     overloadReps: 7,
+    weightIncrement: 2.5,
   },
   {
     id: "weighted-dips",
@@ -106,6 +113,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "chest",
     overloadReps: 8,
+    weightIncrement: 5,
   },
   {
     id: "leg-extension",
@@ -113,6 +121,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "quads",
     overloadReps: 10,
+    weightIncrement: 15,
   },
   {
     id: "barbell-rdl",
@@ -120,6 +129,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "hamstrings",
     overloadReps: 7,
+    weightIncrement: 5,
   },
   {
     id: "db-tricep-extension",
@@ -127,6 +137,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "tricep",
     overloadReps: 12,
+    weightIncrement: 2.5,
   },
   {
     id: "weighted-russian-twist",
@@ -134,6 +145,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "full-body",
     bodyPart: "abs",
     overloadReps: 15,
+    weightIncrement: 2.5,
   },
   {
     id: "db-lateral-raise",
@@ -141,6 +153,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "shoulder",
     overloadReps: 12,
+    weightIncrement: 2.5,
   },
   {
     id: "bicep-curl",
@@ -148,6 +161,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "bicep",
     overloadReps: 10,
+    weightIncrement: 2.5,
   },
   {
     id: "machine-shoulder-press",
@@ -155,6 +169,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "shoulder",
     overloadReps: 10,
+    weightIncrement: 5,
   },
   {
     id: "calf-raise-machine",
@@ -162,6 +177,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "calves",
     overloadReps: 12,
+    weightIncrement: 10,
   },
   {
     id: "hanging-leg-raises",
@@ -169,6 +185,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "abs",
     overloadReps: 10,
+    weightIncrement: 2.5,
   },
   {
     id: "weighted-crunches",
@@ -176,6 +193,7 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "abs",
     overloadReps: 8,
+    weightIncrement: 5,
   },
   {
     id: "skull-crushers",
@@ -183,8 +201,42 @@ const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
     split: "isolation",
     bodyPart: "tricep",
     overloadReps: 10,
+    weightIncrement: 5,
   },
 ];
+
+export function defaultWeightIncrement(bodyPart: BodyPart): number {
+  if (bodyPart === "quads" || bodyPart === "calves" || bodyPart === "hamstrings") return 15;
+  if (bodyPart === "shoulder" || bodyPart === "bicep" || bodyPart === "tricep") return 2.5;
+  return 5;
+}
+
+export function resolveWeightIncrement(exercise: Exercise): number {
+  if (exercise.weightIncrement && exercise.weightIncrement > 0) {
+    return exercise.weightIncrement;
+  }
+  return defaultWeightIncrement(exercise.bodyPart);
+}
+
+export function suggestedNextWeight(
+  lastSets: GymSet[] | undefined,
+  overloadReps: number,
+  weightIncrement: number,
+): { ready: boolean; nextWeight: number; lastWeight: number; lastReps: number } | null {
+  if (!lastSets?.length) return null;
+  const done = completedSets(lastSets);
+  if (!done.length) return null;
+  const best = bestSet(done);
+  const ready = best.reps >= overloadReps;
+  return {
+    ready,
+    lastWeight: best.weight,
+    lastReps: best.reps,
+    nextWeight: ready
+      ? Math.round((best.weight + weightIncrement) * 4) / 4
+      : best.weight,
+  };
+}
 
 export const EXERCISES: Exercise[] = BASE_EXERCISES.map((exercise, index) => ({
   ...exercise,
@@ -231,10 +283,22 @@ export function mergeExerciseCatalog(stored: Exercise[]): Exercise[] {
   const overlays = new Map(stored.map((exercise) => [exercise.id, exercise]));
   const merged = EXERCISES.map((exercise) => {
     const overlay = overlays.get(exercise.id);
-    return overlay ? { ...exercise, ...overlay, custom: false } : exercise;
+    if (!overlay) return exercise;
+    return {
+      ...exercise,
+      ...overlay,
+      custom: false,
+      weightIncrement: overlay.weightIncrement ?? exercise.weightIncrement,
+    };
   });
   for (const exercise of stored) {
-    if (!merged.some((item) => item.id === exercise.id)) merged.push(exercise);
+    if (!merged.some((item) => item.id === exercise.id)) {
+      merged.push({
+        ...exercise,
+        weightIncrement:
+          exercise.weightIncrement || defaultWeightIncrement(exercise.bodyPart),
+      });
+    }
   }
   return merged.sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label),

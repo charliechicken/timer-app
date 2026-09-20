@@ -20,6 +20,15 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "Week timer",
   description: "Track study, gym, clubs, and the rest of the week.",
+  applicationName: "Week timer",
+  appleWebApp: {
+    capable: true,
+    title: "Week timer",
+    statusBarStyle: "default",
+  },
+  formatDetection: {
+    telephone: false,
+  },
 };
 
 export const viewport: Viewport = {
