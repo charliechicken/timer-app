@@ -9,6 +9,7 @@ import {
   catalogMap,
   completedSets,
   epley1RM,
+  exerciseOnSplit,
   mergeExerciseCatalog,
   slugExerciseId,
   visibleExercises,
@@ -140,31 +141,38 @@ export function useGym(firebaseUid: string | null) {
       if (!ownerId) return { restored: false as const };
       const label = input.label.trim();
       const existing = exercises.find(
-        (item) =>
-          item.split === input.split &&
-          item.label.toLowerCase() === label.toLowerCase(),
+        (item) => item.label.toLowerCase() === label.toLowerCase(),
       );
-      if (existing?.archived) {
+      if (existing) {
+        const alreadyOnSplit = exerciseOnSplit(existing, input.split) && !existing.archived;
+        if (alreadyOnSplit) {
+          return { restored: false as const, alreadyActive: true as const };
+        }
         const inSplit = visibleExercises(exercises, input.split);
         const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
+        const splits = existing.splits.includes(input.split)
+          ? existing.splits
+          : [...existing.splits, input.split];
         await saveGymExercise(ownerId, {
           ...existing,
           bodyPart: input.bodyPart,
           overloadReps: input.overloadReps,
+          splits,
           sortOrder: maxOrder + 10,
           archived: false,
         });
-        return { restored: true as const, label: existing.label };
-      }
-      if (existing && !existing.archived) {
-        return { restored: false as const, alreadyActive: true as const };
+        return {
+          restored: true as const,
+          label: existing.label,
+          crossDay: existing.splits.some((item) => item !== input.split) || !existing.archived,
+        };
       }
       const inSplit = visibleExercises(exercises, input.split);
       const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
       await saveGymExercise(ownerId, {
         id: slugExerciseId(label),
         label,
-        split: input.split,
+        splits: [input.split],
         bodyPart: input.bodyPart,
         overloadReps: input.overloadReps,
         sortOrder: maxOrder + 10,
@@ -172,6 +180,47 @@ export function useGym(firebaseUid: string | null) {
         archived: false,
       });
       return { restored: false as const };
+    },
+    [exercises, ownerId],
+  );
+
+  /** Add an existing catalog lift to another day — same id keeps weights/reps. */
+  const addExerciseToSplit = useCallback(
+    async (exerciseId: string, split: SplitType) => {
+      if (!ownerId) return;
+      const current =
+        exercises.find((item) => item.id === exerciseId) ??
+        EXERCISES.find((item) => item.id === exerciseId);
+      if (!current) return;
+      if (exerciseOnSplit(current, split) && !current.archived) return;
+      const inSplit = visibleExercises(exercises, split);
+      const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
+      const splits = current.splits.includes(split)
+        ? current.splits
+        : [...current.splits, split];
+      await saveGymExercise(ownerId, {
+        ...current,
+        splits,
+        sortOrder: maxOrder + 10,
+        archived: false,
+      });
+    },
+    [exercises, ownerId],
+  );
+
+  const removeExerciseFromSplit = useCallback(
+    async (exerciseId: string, split: SplitType) => {
+      if (!ownerId) return;
+      const current =
+        exercises.find((item) => item.id === exerciseId) ??
+        EXERCISES.find((item) => item.id === exerciseId);
+      if (!current) return;
+      const splits = current.splits.filter((item) => item !== split);
+      await saveGymExercise(ownerId, {
+        ...current,
+        splits: splits.length ? splits : current.splits,
+        archived: splits.length === 0 ? true : current.archived,
+      });
     },
     [exercises, ownerId],
   );
@@ -189,16 +238,26 @@ export function useGym(firebaseUid: string | null) {
   );
 
   const restoreExercise = useCallback(
-    async (exerciseId: string) => {
+    async (exerciseId: string, split?: SplitType) => {
       if (!ownerId) return;
       const current =
         exercises.find((item) => item.id === exerciseId) ??
         EXERCISES.find((item) => item.id === exerciseId);
       if (!current) return;
-      const inSplit = visibleExercises(exercises, current.split);
+      const targetSplit = split ?? current.splits[0];
+      const splits =
+        targetSplit && !current.splits.includes(targetSplit)
+          ? [...current.splits, targetSplit]
+          : current.splits.length
+            ? current.splits
+            : targetSplit
+              ? [targetSplit]
+              : ["push" as SplitType];
+      const inSplit = visibleExercises(exercises, splits[0]);
       const maxOrder = Math.max(0, ...inSplit.map((item) => item.sortOrder ?? 0));
       await saveGymExercise(ownerId, {
         ...current,
+        splits,
         sortOrder: maxOrder + 10,
         archived: false,
       });
@@ -213,7 +272,11 @@ export function useGym(firebaseUid: string | null) {
         orderedIds.map((id, index) => {
           const current = exercises.find((item) => item.id === id);
           if (!current) return Promise.resolve();
-          return saveGymExercise(ownerId, { ...current, sortOrder: index * 10, archived: false });
+          return saveGymExercise(ownerId, {
+            ...current,
+            sortOrder: index * 10,
+            archived: false,
+          });
         }),
       );
     },
@@ -259,6 +322,8 @@ export function useGym(firebaseUid: string | null) {
     upsertGoal,
     upsertExercise,
     createExercise,
+    addExerciseToSplit,
+    removeExerciseFromSplit,
     archiveExercise,
     restoreExercise,
     reorderExercises,

@@ -435,8 +435,14 @@ h3 {
   border-color: color-mix(in srgb, var(--btn-strong) 28%, var(--line));
 }
 
-.split-pick {
-  align-items: center;
+.cross-day-add {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.split-pick.wrap {
+  flex-wrap: wrap;
 }
 
 .gym-exercises {
