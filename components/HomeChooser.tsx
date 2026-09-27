@@ -16,7 +16,7 @@ export function HomeChooser() {
           <Link href="/gym" className="chooser-card">
             <p className="eyebrow">Training</p>
             <h2>Gym</h2>
-            <p>6-day split, sets, and progress toward your goals.</p>
+            <p>Push / pull / legs / upper / lower, sets, and progress.</p>
           </Link>
           <Link href="/timer" className="chooser-card">
             <p className="eyebrow">Tracking</p>

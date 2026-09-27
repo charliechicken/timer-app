@@ -9,8 +9,11 @@ import {
 import { getDb, isFirebaseConfigured } from "./firebase";
 import {
   DEFAULT_GOALS,
+  EXERCISE_MAP,
   isBodyPart,
   isExerciseId,
+  normalizeSplit,
+  normalizeSplits,
   type Exercise,
   type GymDay,
   type GymGoal,
@@ -40,7 +43,8 @@ function parseLog(raw: unknown): GymLog | null {
   if (typeof value.exerciseId !== "string" || !isExerciseId(value.exerciseId)) {
     return null;
   }
-  if (value.split !== "full-body" && value.split !== "isolation") return null;
+  const split = normalizeSplit(value.split);
+  if (!split) return null;
   if (typeof value.loggedAt !== "number" || typeof value.dateKey !== "string") {
     return null;
   }
@@ -50,7 +54,7 @@ function parseLog(raw: unknown): GymLog | null {
   return {
     id: value.id,
     exerciseId: value.exerciseId,
-    split: value.split,
+    split,
     loggedAt: value.loggedAt,
     dateKey: value.dateKey,
     sets,
@@ -63,12 +67,13 @@ function parseDay(raw: unknown): GymDay | null {
   if (typeof value.id !== "string" || typeof value.dateKey !== "string") {
     return null;
   }
-  if (value.split !== "full-body" && value.split !== "isolation") return null;
+  const split = normalizeSplit(value.split);
+  if (!split) return null;
   if (typeof value.startedAt !== "number") return null;
   return {
     id: value.id,
     dateKey: value.dateKey,
-    split: value.split,
+    split,
     startedAt: value.startedAt,
   };
 }
@@ -96,13 +101,21 @@ function parseExercise(raw: unknown): Exercise | null {
   const value = raw as Record<string, unknown>;
   if (typeof value.id !== "string" || !isExerciseId(value.id)) return null;
   if (typeof value.label !== "string" || !value.label.trim()) return null;
-  if (value.split !== "full-body" && value.split !== "isolation") return null;
+  const hasExplicitSplits = Array.isArray(value.splits) && value.splits.length > 0;
+  const catalog = EXERCISE_MAP[value.id];
+  // Legacy docs only had `split` (full-body/isolation). Prefer the new multi-day plan.
+  const splits = hasExplicitSplits
+    ? normalizeSplits(value.splits)
+    : catalog?.splits?.length
+      ? catalog.splits
+      : normalizeSplits(undefined, value.split);
+  if (splits.length === 0) return null;
   if (typeof value.bodyPart !== "string" || !isBodyPart(value.bodyPart)) return null;
   if (typeof value.overloadReps !== "number" || value.overloadReps <= 0) return null;
   return {
     id: value.id,
     label: value.label.trim(),
-    split: value.split,
+    splits,
     bodyPart: value.bodyPart,
     overloadReps: value.overloadReps,
     sortOrder: typeof value.sortOrder === "number" ? value.sortOrder : undefined,
