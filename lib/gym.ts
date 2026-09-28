@@ -9,14 +9,15 @@ export type BodyPart =
   | "hamstrings"
   | "back";
 
-export type SplitType = "full-body" | "isolation";
+export type SplitType = "push" | "pull" | "legs" | "upper" | "lower";
 
 export type ExerciseId = string;
 
 export type Exercise = {
   id: ExerciseId;
   label: string;
-  split: SplitType;
+  /** Day templates this lift appears on. Same id → shared weights/reps. */
+  splits: SplitType[];
   bodyPart: BodyPart;
   overloadReps: number;
   sortOrder?: number;
@@ -64,123 +65,144 @@ export const BODY_PARTS: BodyPart[] = [
   "back",
 ];
 
+export const SPLIT_TYPES: SplitType[] = ["push", "pull", "legs", "upper", "lower"];
+
+export const SPLIT_LABELS: Record<SplitType, string> = {
+  push: "Push",
+  pull: "Pull",
+  legs: "Legs",
+  upper: "Upper",
+  lower: "Lower",
+};
+
+/** Mon push · Tue pull · Wed legs · Thu rest · Fri upper · Sat lower · Sun rest */
+export const WEEK_SPLIT_PLAN: Array<SplitType | "rest"> = [
+  "push",
+  "pull",
+  "legs",
+  "rest",
+  "upper",
+  "lower",
+  "rest",
+];
+
 const BASE_EXERCISES: Omit<Exercise, "sortOrder" | "custom" | "archived">[] = [
   {
     id: "unilateral-calf-raise",
     label: "Unilateral leg press calf raise",
-    split: "full-body",
+    splits: ["legs", "lower"],
     bodyPart: "calves",
     overloadReps: 12,
   },
   {
     id: "machine-leg-press",
     label: "Machine leg press",
-    split: "full-body",
+    splits: ["legs", "lower"],
     bodyPart: "quads",
     overloadReps: 10,
   },
   {
     id: "barbell-bench-press",
     label: "Barbell bench press",
-    split: "full-body",
+    splits: ["push", "upper"],
     bodyPart: "chest",
     overloadReps: 5,
   },
   {
     id: "lateral-raise-machine",
     label: "Lateral raise machine",
-    split: "full-body",
+    splits: ["push", "upper"],
     bodyPart: "shoulder",
     overloadReps: 15,
   },
   {
     id: "weighted-pullup",
     label: "Weighted pull-up",
-    split: "full-body",
+    splits: ["pull", "upper"],
     bodyPart: "back",
     overloadReps: 7,
   },
   {
     id: "weighted-dips",
     label: "Weighted dips",
-    split: "full-body",
+    splits: ["push", "upper"],
     bodyPart: "chest",
     overloadReps: 8,
   },
   {
     id: "leg-extension",
     label: "Leg extension",
-    split: "full-body",
+    splits: ["legs", "lower"],
     bodyPart: "quads",
     overloadReps: 10,
   },
   {
     id: "barbell-rdl",
     label: "Barbell RDL",
-    split: "full-body",
+    splits: ["pull", "legs", "lower"],
     bodyPart: "hamstrings",
     overloadReps: 7,
   },
   {
     id: "db-tricep-extension",
     label: "Dumbbell tricep extension",
-    split: "full-body",
+    splits: ["push", "upper"],
     bodyPart: "tricep",
     overloadReps: 12,
   },
   {
     id: "weighted-russian-twist",
     label: "Weighted Russian twist",
-    split: "full-body",
+    splits: ["legs", "upper"],
     bodyPart: "abs",
     overloadReps: 15,
   },
   {
     id: "db-lateral-raise",
     label: "Dumbbell lateral raise",
-    split: "isolation",
+    splits: ["push", "upper"],
     bodyPart: "shoulder",
     overloadReps: 12,
   },
   {
     id: "bicep-curl",
     label: "Bicep curl",
-    split: "isolation",
+    splits: ["pull", "upper"],
     bodyPart: "bicep",
     overloadReps: 10,
   },
   {
     id: "machine-shoulder-press",
     label: "Machine shoulder press",
-    split: "isolation",
+    splits: ["push", "upper"],
     bodyPart: "shoulder",
     overloadReps: 10,
   },
   {
     id: "calf-raise-machine",
     label: "Calf raise machine",
-    split: "isolation",
+    splits: ["legs", "lower"],
     bodyPart: "calves",
     overloadReps: 12,
   },
   {
     id: "hanging-leg-raises",
     label: "Hanging leg raises",
-    split: "isolation",
+    splits: ["legs", "lower"],
     bodyPart: "abs",
     overloadReps: 10,
   },
   {
     id: "weighted-crunches",
     label: "Weighted crunches",
-    split: "isolation",
+    splits: ["legs", "upper"],
     bodyPart: "abs",
     overloadReps: 8,
   },
   {
     id: "skull-crushers",
     label: "Skull crushers",
-    split: "isolation",
+    splits: ["push", "upper"],
     bodyPart: "tricep",
     overloadReps: 10,
   },
@@ -223,6 +245,37 @@ export const DEFAULT_GOALS: GymGoal[] = [
   },
 ];
 
+export function isSplitType(value: string): value is SplitType {
+  return (SPLIT_TYPES as string[]).includes(value);
+}
+
+/** Map legacy full-body / isolation values onto the new split names. */
+export function normalizeSplit(value: unknown): SplitType | null {
+  if (typeof value !== "string") return null;
+  if (isSplitType(value)) return value;
+  if (value === "full-body") return "push";
+  if (value === "isolation") return "upper";
+  return null;
+}
+
+export function normalizeSplits(raw: unknown, fallbackSplit?: unknown): SplitType[] {
+  if (Array.isArray(raw)) {
+    const unique = [...new Set(raw.map(normalizeSplit).filter((s): s is SplitType => s !== null))];
+    if (unique.length) return unique;
+  }
+  const single = normalizeSplit(fallbackSplit);
+  return single ? [single] : [];
+}
+
+export function exerciseOnSplit(exercise: Exercise, split: SplitType): boolean {
+  return exercise.splits.includes(split);
+}
+
+export function splitLabel(split: SplitType | "rest"): string {
+  if (split === "rest") return "Rest";
+  return SPLIT_LABELS[split];
+}
+
 export function catalogMap(exercises: Exercise[]): Record<string, Exercise> {
   return Object.fromEntries(exercises.map((exercise) => [exercise.id, exercise]));
 }
@@ -231,7 +284,12 @@ export function mergeExerciseCatalog(stored: Exercise[]): Exercise[] {
   const overlays = new Map(stored.map((exercise) => [exercise.id, exercise]));
   const merged = EXERCISES.map((exercise) => {
     const overlay = overlays.get(exercise.id);
-    return overlay ? { ...exercise, ...overlay, custom: false } : exercise;
+    if (!overlay) return exercise;
+    const splits =
+      overlay.splits?.length > 0
+        ? [...new Set(overlay.splits)]
+        : exercise.splits;
+    return { ...exercise, ...overlay, splits, custom: false };
   });
   for (const exercise of stored) {
     if (!merged.some((item) => item.id === exercise.id)) merged.push(exercise);
@@ -243,7 +301,9 @@ export function mergeExerciseCatalog(stored: Exercise[]): Exercise[] {
 
 export function visibleExercises(exercises: Exercise[], split?: SplitType): Exercise[] {
   return exercises.filter(
-    (exercise) => !exercise.archived && (!split || exercise.split === split),
+    (exercise) =>
+      !exercise.archived &&
+      (!split || exerciseOnSplit(exercise, split)),
   );
 }
 
@@ -259,10 +319,13 @@ export function exercisesForSplit(split: SplitType, catalog = EXERCISES): Exerci
   return visibleExercises(catalog, split);
 }
 
+/**
+ * Monday-start plan: push, pull, legs, rest, upper, lower, rest.
+ * `getDay()`: 0 Sun … 6 Sat → index into WEEK_SPLIT_PLAN via Mon=0.
+ */
 export function suggestedSplit(date = new Date()): SplitType | "rest" {
-  const day = date.getDay();
-  if (day === 0) return "rest";
-  return day % 2 === 1 ? "full-body" : "isolation";
+  const mondayIndex = (date.getDay() + 6) % 7;
+  return WEEK_SPLIT_PLAN[mondayIndex] ?? "rest";
 }
 
 export function epley1RM(weight: number, reps: number): number {

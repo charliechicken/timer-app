@@ -9,11 +9,14 @@ import { sendAppEmail } from "@/lib/alerts";
 import {
   BODY_PARTS,
   LIFT_COLORS,
+  SPLIT_TYPES,
   bestSet,
   bodyPartLabel,
   completedSets,
   epley1RM,
+  exerciseOnSplit,
   exercisesForSplit,
+  splitLabel,
   suggestedSplit,
   type BodyPart,
   type Exercise,
@@ -48,8 +51,17 @@ export function GymApp() {
   const todayLog = gym.days.find((day) => day.dateKey === todayKey);
   const suggestion = suggestedSplit();
   const [picked, setPicked] = useState<SplitType | null>(null);
-  const split = picked ?? todayLog?.split ?? (suggestion === "rest" ? "full-body" : suggestion);
+  const split =
+    picked ?? todayLog?.split ?? (suggestion === "rest" ? "push" : suggestion);
   const exercises = exercisesForSplit(split, gym.exercises);
+  const catalogForAdd = useMemo(
+    () =>
+      gym.exercises.filter(
+        (exercise) =>
+          !exercise.archived && !exerciseOnSplit(exercise, split),
+      ),
+    [gym.exercises, split],
+  );
   const [drafts, setDrafts] = useState<Record<string, DraftSet[]>>({});
   const [menuId, setMenuId] = useState<string | null>(null);
   const [overviewId, setOverviewId] = useState<string | null>(null);
@@ -158,10 +170,8 @@ function valuesForExercise(
           <p className="brand">Gym</p>
           <h2>
             {suggestion === "rest"
-              ? "Sunday rest — or pick a split anyway"
-              : suggestion === "full-body"
-                ? "Full body day"
-                : "Isolation day"}
+              ? "Rest day — or pick a split anyway"
+              : `${splitLabel(suggestion)} day`}
           </h2>
         </div>
         <div className="split-pick">
@@ -196,23 +206,19 @@ function valuesForExercise(
       <section className="panel">
         <div className="panel-title">
           <h3>Today’s split</h3>
-          <p>Mon / Wed / Fri full body · Tue / Thu / Sat isolation · Sun rest</p>
+          <p>Mon push · Tue pull · Wed legs · Thu rest · Fri upper · Sat lower · Sun rest</p>
         </div>
         <div className="split-pick">
-          <button
-            type="button"
-            className={split === "full-body" ? "stop" : "ghost"}
-            onClick={() => void chooseSplit("full-body")}
-          >
-            Full body
-          </button>
-          <button
-            type="button"
-            className={split === "isolation" ? "stop" : "ghost"}
-            onClick={() => void chooseSplit("isolation")}
-          >
-            Isolation
-          </button>
+          {SPLIT_TYPES.map((option) => (
+            <button
+              key={option}
+              type="button"
+              className={split === option ? "stop" : "ghost"}
+              onClick={() => void chooseSplit(option)}
+            >
+              {splitLabel(option)}
+            </button>
+          ))}
           <button type="button" className="stop" onClick={() => void startWorkout()}>
             {timer.activeSession?.activityId === "gym" ? "Workout running" : "Start workout"}
           </button>
@@ -226,17 +232,7 @@ function valuesForExercise(
             return (
               <div key={key} className={`gym-day ${today ? "selected" : ""}`}>
                 <strong>{formatDayLabel(day)}</strong>
-                <span>
-                  {logged
-                    ? logged.split === "full-body"
-                      ? "Full body"
-                      : "Isolation"
-                    : planned === "rest"
-                      ? "Rest"
-                      : planned === "full-body"
-                        ? "Full body"
-                        : "Isolation"}
-                </span>
+                <span>{logged ? splitLabel(logged.split) : splitLabel(planned)}</span>
                 <span className="day-total">
                   {logged ? "Done" : today ? "Today" : planned === "rest" ? "—" : "Planned"}
                 </span>
@@ -256,27 +252,41 @@ function valuesForExercise(
 
       <section className="panel">
         <div className="panel-title">
-          <h3>{split === "full-body" ? "Full body" : "Isolation"} exercises</h3>
-          <p>Log as many sets as you want. Use ⋮⋮ to drag sets or lifts. Remove keeps the lift in All lifts with past weights.</p>
+          <h3>{splitLabel(split)} exercises</h3>
+          <p>
+            Same lift on multiple days shares one weight history. Add from the catalog or create
+            new — use ⋮⋮ to drag sets or lifts.
+          </p>
         </div>
         <form
           className="goal-form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!create.label.trim()) return;
+            const label = create.label.trim();
+            if (!label) return;
+            const bodyPart = create.bodyPart;
+            const overloadReps = Number(create.overloadReps) || 10;
+            setCreate({ label: "", bodyPart: "back", overloadReps: "10" });
             void gym
               .createExercise({
-                label: create.label,
+                label,
                 split,
-                bodyPart: create.bodyPart,
-                overloadReps: Number(create.overloadReps) || 10,
+                bodyPart,
+                overloadReps,
               })
               .then((result) => {
+                if (result?.alreadyActive) {
+                  setNotice(`${label} is already on ${splitLabel(split)}.`);
+                  return;
+                }
                 if (result?.restored) {
-                  setNotice(`Restored ${result.label} with previous weights.`);
+                  setNotice(
+                    result.crossDay
+                      ? `Added ${result.label} to ${splitLabel(split)} — same weights and reps as other days.`
+                      : `Restored ${result.label} with previous weights.`,
+                  );
                 }
               });
-            setCreate({ label: "", bodyPart: "back", overloadReps: "10" });
           }}
         >
           <label>
@@ -317,6 +327,33 @@ function valuesForExercise(
             Add lift
           </button>
         </form>
+        {catalogForAdd.length > 0 ? (
+          <div className="cross-day-add">
+            <p className="muted">
+              Add an existing lift to {splitLabel(split)} — weights and reps stay shared.
+            </p>
+            <div className="split-pick wrap">
+              {catalogForAdd.map((exercise) => (
+                <button
+                  key={exercise.id}
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    void gym.addExerciseToSplit(exercise.id, split).then(() => {
+                      setNotice(
+                        `Added ${exercise.label} to ${splitLabel(split)} — same weights as ${exercise.splits
+                          .map(splitLabel)
+                          .join(" / ")}.`,
+                      );
+                    });
+                  }}
+                >
+                  + {exercise.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         <div className="gym-exercises">
           {exercises.map((exercise, index) => {
             const previous = lastLogFor(gym.logs, exercise.id, todayKey);
@@ -413,7 +450,8 @@ function valuesForExercise(
       {catalogOpen ? (
         <Modal title="All lifts" onClose={() => setCatalogOpen(false)}>
           <p className="muted">
-            Removed lifts stay here with past weights. Add them back anytime.
+            Lifts keep one weight history across days. Add any lift to {splitLabel(split)} without
+            creating a duplicate.
           </p>
           <ol className="report-ranks catalog-list">
             {gym.exercises.map((exercise) => {
@@ -421,27 +459,37 @@ function valuesForExercise(
                 .filter((log) => log.exerciseId === exercise.id)
                 .sort((a, b) => b.loggedAt - a.loggedAt)[0];
               const set = last ? bestSet(completedSets(last.sets)) : null;
+              const onToday = exerciseOnSplit(exercise, split) && !exercise.archived;
               return (
                 <li key={exercise.id}>
                   <span className="rank-label">
                     {exercise.label}
                     {exercise.archived ? <em className="catalog-tag"> removed</em> : null}
+                    {!exercise.archived ? (
+                      <em className="catalog-tag">
+                        {" "}
+                        · {exercise.splits.map(splitLabel).join(", ")}
+                      </em>
+                    ) : null}
                   </span>
                   <span className="rank-time">
                     {set
                       ? `${set.weight} x ${set.reps} · e1RM ${epley1RM(set.weight, set.reps).toFixed(1)}`
                       : "No logs yet"}
                   </span>
-                  {exercise.archived ? (
+                  {!onToday ? (
                     <button
                       type="button"
                       className="ghost"
                       onClick={() => {
-                        void gym.restoreExercise(exercise.id);
-                        setNotice(`Added ${exercise.label} back — previous weights still apply.`);
+                        void gym.addExerciseToSplit(exercise.id, split).then(() => {
+                          setNotice(
+                            `Added ${exercise.label} to ${splitLabel(split)} — previous weights still apply.`,
+                          );
+                        });
                       }}
                     >
-                      Add back
+                      Add to {splitLabel(split)}
                     </button>
                   ) : null}
                 </li>
@@ -495,10 +543,11 @@ function valuesForExercise(
       {confirmId ? (
         <div className="confirm-modal" role="dialog" aria-modal="true">
           <div className="panel">
-            <h3>Remove from this split?</h3>
+            <h3>Remove from {splitLabel(split)}?</h3>
             <p className="muted">
-              {gym.exercises.find((item) => item.id === confirmId)?.label} leaves today’s list but
-              stays in the catalog with past weights. Open All lifts → Add back anytime.
+              {gym.exercises.find((item) => item.id === confirmId)?.label} leaves today’s list.
+              Other days keep it, and past weights stay on this lift. Open All lifts to add it back
+              anytime.
             </p>
             <div className="split-pick">
               <button type="button" className="ghost" onClick={() => setConfirmId(null)}>
@@ -508,9 +557,11 @@ function valuesForExercise(
                 type="button"
                 className="stop"
                 onClick={() => {
-                  void gym.archiveExercise(confirmId);
+                  void gym.removeExerciseFromSplit(confirmId, split);
                   setConfirmId(null);
-                  setNotice("Removed from the split — still in All lifts with past weights.");
+                  setNotice(
+                    `Removed from ${splitLabel(split)} — still available on other days with past weights.`,
+                  );
                 }}
               >
                 Remove
@@ -645,7 +696,8 @@ function ExerciseLog({
         <div>
           <h3>{exercise.label}</h3>
           <p>
-            {bodyPartLabel(exercise.bodyPart)} · overload at {exercise.overloadReps} reps
+            {bodyPartLabel(exercise.bodyPart)} · {exercise.splits.map(splitLabel).join(" / ")} ·
+            overload at {exercise.overloadReps} reps
             {lastSets?.length
               ? ` · last ${lastSets
                   .filter((set) => set.weight > 0 || set.reps > 0)
